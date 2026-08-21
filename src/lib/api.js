@@ -160,7 +160,8 @@ export async function listSections(lessonId) {
         config,
         points,
         position,
-        section_id
+        section_id,
+        audio_url
       )
     `)
     .eq('lesson_id', lessonId)
@@ -227,7 +228,8 @@ export async function saveActivities(lessonId, activities, force = false) {
     prompt: a.prompt,
     config: a.config || {},
     points: a.points ?? 1,
-    position: index
+    position: index,
+    audio_url: a.audio_url || null   // <-- NEW
   }))
 
   const { data, error } = await supabase.from('activities').insert(rows).select()
@@ -352,11 +354,7 @@ export async function getResultsForLesson(lessonId) {
 
 // ---------- Save & Exit ----------
 export async function saveLessonProgress(lessonId, currentSectionIndex, currentActivityIndex, draftAnswers) {
-  // Bypass auth for sandbox testing
-  // const { data: { user } } = await supabase.auth.getUser();
   const user = { id: 'test-user' }; // bypass auth for sandbox
-  // if (!user) throw new Error('User not authenticated');
-
   const { data, error } = await supabase
     .from('lesson_progress')
     .upsert({
@@ -376,11 +374,7 @@ export async function saveLessonProgress(lessonId, currentSectionIndex, currentA
 }
 
 export async function getLessonProgress(lessonId) {
-  // Bypass auth for sandbox testing
-  // const { data: { user } } = await supabase.auth.getUser();
   const user = { id: 'test-user' }; // bypass auth for sandbox
-  // if (!user) return null;
-
   const { data, error } = await supabase
     .from('lesson_progress')
     .select('*')
@@ -485,11 +479,9 @@ export async function saveSubmission(submissionId, updates) {
 
 export async function getSubmission(slug, studentName) {
   try {
-    // First get the lesson (published or draft? we use published for real students)
     const lesson = await getLessonBySlug(slug)
     if (!lesson) return null
 
-    // Normalize the student name: trim and lowercase for case-insensitive search
     const normalizedName = studentName.trim()
     console.log(`🔍 Looking for submission with lesson_id=${lesson.id}, student_identifier='${normalizedName}'`)
 

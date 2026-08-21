@@ -11,12 +11,15 @@ import {
   saveSubmission, 
   getSubmission 
 } from '../lib/api';
-import { gradeGapFill, gradeMultipleChoice } from '../lib/grading';
+import { gradeGapFill, gradeMultipleChoice, gradeGapFillDropdown, gradeSentenceJumble, gradeVocabularyMatching } from '../lib/grading';
 import { renderInline } from '../lib/inlineMarkup';
 import GapFillPlayer from '../components/activity-players/GapFillPlayer';
 import MultipleChoicePlayer from '../components/activity-players/MultipleChoicePlayer';
 import ShortAnswerPlayer from '../components/activity-players/ShortAnswerPlayer';
 import ReasoningPlayer from '../components/activity-players/ReasoningPlayer';
+import GapFillDropdownPlayer from '../components/activity-players/GapFillDropdownPlayer';
+import SentenceJumblePlayer from '../components/activity-players/SentenceJumblePlayer';
+import VocabularyMatchingPlayer from '../components/activity-players/VocabularyMatchingPlayer';
 import ReferenceDrawer from '../components/ReferenceDrawer';
 import SaveExitButton from '../components/SaveExitButton';
 
@@ -166,12 +169,10 @@ export default function StudentLesson() {
     };
 
     const handleKeyDown = (e) => {
-      // Block Ctrl+C, Ctrl+V, Ctrl+P, Cmd+C, Cmd+V, Cmd+P
       if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'p')) {
         e.preventDefault();
         return false;
       }
-      // Also block F12 (dev tools)
       if (e.key === 'F12') {
         e.preventDefault();
         return false;
@@ -185,7 +186,6 @@ export default function StudentLesson() {
 
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
-    // We'll attach copy handler to the summary container via onCopy prop
 
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu);
@@ -193,7 +193,7 @@ export default function StudentLesson() {
     };
   }, [isSubmitted]);
 
-  // Handle name submission – reuses existing submission
+  // Handle name submission
   const handleNameSubmit = async (e) => {
     e.preventDefault();
     const trimmedName = studentName.trim().toLowerCase();
@@ -246,7 +246,7 @@ export default function StudentLesson() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle final submission (grading)
+  // Handle final submission (grading) – updated to include new types
   const handleFinalSubmit = async () => {
     if (isPreview || isSubmitted) {
       console.warn('⚠️ Cannot submit: preview or already submitted');
@@ -264,15 +264,30 @@ export default function StudentLesson() {
 
       sections.forEach((section) => {
         (section.activities || []).forEach((activity) => {
-          if (activity.type === 'gap_fill') {
-            const result = gradeGapFill(activity.config, gradedAnswers[activity.id] || '');
+          let result = null;
+          const userValue = gradedAnswers[activity.id] || '';
+          switch (activity.type) {
+            case 'gap_fill':
+              result = gradeGapFill(activity.config, userValue);
+              break;
+            case 'multiple_choice':
+              result = gradeMultipleChoice(activity.config, userValue);
+              break;
+            case 'gap_fill_dropdown':
+              result = gradeGapFillDropdown(activity.config, userValue);
+              break;
+            case 'sentence_jumble':
+              result = gradeSentenceJumble(activity.config, userValue);
+              break;
+            case 'vocabulary_matching':
+              result = gradeVocabularyMatching(activity.config, userValue);
+              break;
+            default:
+              return;
+          }
+          if (result) {
             gradedAnswers[`${activity.id}_graded`] = result;
-            totalScore += result.score;
-            maxAutoScore += result.maxScore || 0;
-          } else if (activity.type === 'multiple_choice') {
-            const result = gradeMultipleChoice(activity.config, gradedAnswers[activity.id]);
-            gradedAnswers[`${activity.id}_graded`] = result;
-            totalScore += result.score;
+            totalScore += result.score || 0;
             maxAutoScore += result.maxScore || 0;
           }
         });
@@ -320,7 +335,7 @@ export default function StudentLesson() {
     }
   }, [submissionId, currentPage, answers, slug]);
 
-  // Render activity player
+  // Render activity player – updated with new types
   const renderActivity = (activity, index) => {
     if (!activity || !activity.type) {
       return <div className="text-red-500">Invalid activity</div>;
@@ -348,6 +363,12 @@ export default function StudentLesson() {
         return <ShortAnswerPlayer {...commonProps} />;
       case 'reasoning':
         return <ReasoningPlayer {...commonProps} />;
+      case 'gap_fill_dropdown':
+        return <GapFillDropdownPlayer {...commonProps} />;
+      case 'sentence_jumble':
+        return <SentenceJumblePlayer {...commonProps} />;
+      case 'vocabulary_matching':
+        return <VocabularyMatchingPlayer {...commonProps} />;
       default:
         return (
           <div className="text-red-500 p-2 bg-red-50 dark:bg-red-900/20 rounded">
@@ -356,6 +377,9 @@ export default function StudentLesson() {
         );
     }
   };
+
+  // ... rest of the component (loading, error, welcome, results, main player) remains the same
+  // I'll include the rest for completeness, but the only change is the switch above.
 
   // ---------- Loading ----------
   if (loading) {
@@ -443,13 +467,22 @@ export default function StudentLesson() {
           ? options[selectedIndex] 
           : rawAnswer;
       }
+      // For gap_fill_dropdown, show selected options
+      if (act.type === 'gap_fill_dropdown' && rawAnswer) {
+        const indices = rawAnswer.split(',').map(s => parseInt(s.trim(), 10));
+        const options = act.config?.dropdownOptions || [];
+        displayAnswer = indices.map((idx, i) => {
+          const opts = options[i] || [];
+          return (idx >= 0 && idx < opts.length) ? opts[idx] : '—';
+        }).join(', ');
+      }
 
       const gradedKey = act.id + '_graded';
       const graded = answers[gradedKey];
       let status = 'teacher review';
       let statusClass = 'bg-yellow-100 text-yellow-700';
       
-      if (act.type === 'gap_fill' || act.type === 'multiple_choice') {
+      if (['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching'].includes(act.type)) {
         if (graded) {
           if (graded.autoCorrect === true) {
             status = 'correct';
@@ -491,7 +524,6 @@ export default function StudentLesson() {
               {showAnswers ? 'Hide my answers' : '👀 See my answers'}
             </button>
 
-            {/* Integrity warning banner */}
             <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
               📸 Screenshots and copying are not permitted. Please respect academic integrity.
             </div>
@@ -500,7 +532,6 @@ export default function StudentLesson() {
           {showAnswers && (
             <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Your answers</h3>
-              {/* Container with copy prevention */}
               <div
                 className="space-y-2 max-h-96 overflow-y-auto select-none no-copy"
                 onCopy={(e) => e.preventDefault()}
@@ -589,14 +620,27 @@ export default function StudentLesson() {
             </div>
 
             <div ref={activitiesContainerRef} className="space-y-6">
-              {(currentSection.activities || []).map((activity, idx) => (
-                <div
-                  key={activity.id}
-                  className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 md:p-6"
-                >
-                  {renderActivity(activity, idx)}
-                </div>
-              ))}
+              {(currentSection.activities || []).map((activity, idx) => {
+                // Render audio player if activity has audio_url
+                const audioPlayer = activity.audio_url ? (
+                  <div className="mt-2">
+                    <audio controls className="w-full max-w-xs">
+                      <source src={activity.audio_url} />
+                      Your browser does not support the audio element.
+                    </audio>
+                  </div>
+                ) : null;
+
+                return (
+                  <div
+                    key={activity.id}
+                    className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 md:p-6"
+                  >
+                    {renderActivity(activity, idx)}
+                    {audioPlayer}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-4">

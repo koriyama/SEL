@@ -19,7 +19,12 @@ import { renderInline } from '../lib/inlineMarkup.jsx'
 import AudioPlayer from '../components/AudioPlayer.jsx'
 import ReadingText from '../components/ReadingText.jsx'
 
-// ---- Activity Editor Components ----
+// Import new editors (create these files as instructed)
+import GapFillDropdownEditor from '../components/activity-editors/GapFillDropdownEditor.jsx'
+import SentenceJumbleEditor from '../components/activity-editors/SentenceJumbleEditor.jsx'
+import VocabularyMatchingEditor from '../components/activity-editors/VocabularyMatchingEditor.jsx'
+
+// ---- Activity Editor Components (existing ones) ----
 function GapFillEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
@@ -81,8 +86,6 @@ function GapFillEditor({ activity, onChange, inputRef }) {
         <p className="text-xs text-muted mt-1">
           For each blank, you can list multiple acceptable answers separated by a pipe (<code className="bg-gray-100 px-1">|</code>).
           Spaces around the pipe are ignored. Multi‑word answers are supported.
-          Example: <code className="bg-gray-100 px-1">trivialised | trivialized</code> accepts both spellings;
-          <code className="bg-gray-100 px-1">New York | New York City</code> accepts either phrase.
         </p>
       </div>
     </div>
@@ -158,7 +161,6 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
                 className="text-xs text-red-500 hover:text-red-700"
                 onClick={() => removeOption(i)}
                 disabled={options.length <= 1}
-                title={options.length <= 1 ? "Must have at least one option" : "Remove option"}
               >
                 ×
               </button>
@@ -232,14 +234,20 @@ const EDITORS = {
   gap_fill: GapFillEditor,
   multiple_choice: MultipleChoiceEditor,
   short_answer: ShortAnswerEditor,
-  reasoning: ReasoningEditor
+  reasoning: ReasoningEditor,
+  gap_fill_dropdown: GapFillDropdownEditor,
+  sentence_jumble: SentenceJumbleEditor,
+  vocabulary_matching: VocabularyMatchingEditor,
 }
 
 const ACTIVITY_TYPES = [
   { value: 'gap_fill', label: 'Gap Fill' },
   { value: 'multiple_choice', label: 'Multiple Choice' },
   { value: 'short_answer', label: 'Short Answer' },
-  { value: 'reasoning', label: 'Reasoning' }
+  { value: 'reasoning', label: 'Reasoning' },
+  { value: 'gap_fill_dropdown', label: 'Gap Fill (Dropdown)' },
+  { value: 'sentence_jumble', label: 'Sentence Jumble' },
+  { value: 'vocabulary_matching', label: 'Vocabulary Matching' },
 ]
 
 // ---- Main Builder Component ----
@@ -412,13 +420,23 @@ export default function LessonBuilder() {
       prompt: '',
       config: {},
       points: 1,
-      section_id: defaultSectionId
+      section_id: defaultSectionId,
+      audio_url: null // new field
     }
     if (type === 'multiple_choice') {
       newActivity.config = {
         options: ['', '', ''],
         correctIndex: -1
       }
+    }
+    if (type === 'gap_fill_dropdown') {
+      newActivity.config = { text: '', dropdownOptions: [] }
+    }
+    if (type === 'sentence_jumble') {
+      newActivity.config = { words: [] }
+    }
+    if (type === 'vocabulary_matching') {
+      newActivity.config = { pairs: [] }
     }
     setActivities([...activities, newActivity])
   }
@@ -440,6 +458,17 @@ export default function LessonBuilder() {
     const [removed] = newActivities.splice(index, 1)
     newActivities.splice(newIndex, 0, removed)
     setActivities(newActivities)
+  }
+
+  async function handleActivityAudioUpload(activityIndex, file) {
+    if (!file) return
+    try {
+      const url = await uploadAudio(file)
+      const updated = { ...activities[activityIndex], audio_url: url }
+      updateActivity(activityIndex, updated)
+    } catch (err) {
+      setError('Failed to upload activity audio: ' + err.message)
+    }
   }
 
   function addVocabularyItem() {
@@ -543,7 +572,8 @@ export default function LessonBuilder() {
           prompt: a.prompt || '',
           config: a.config || {},
           points: a.points ?? 1,
-          section_id: a.section_id ? oldToNew[a.section_id] || null : null
+          section_id: a.section_id ? oldToNew[a.section_id] || null : null,
+          audio_url: a.audio_url || null
         }))
         setActivities(newActivities)
         const newVocabulary = (data.vocabulary || []).map((v, i) => ({
@@ -562,13 +592,12 @@ export default function LessonBuilder() {
     e.target.value = ''
   }
 
-  // ---------- PREVIEW HANDLER (FIXED) ----------
+  // ---------- PREVIEW HANDLER ----------
   function handlePreview() {
     if (!lesson.share_slug) {
       alert('Please save the lesson first to generate a preview link.')
       return
     }
-    // Open in new tab with ?draft=true
     window.open(`/lesson/${lesson.share_slug}?draft=true`, '_blank')
   }
 
@@ -625,7 +654,6 @@ export default function LessonBuilder() {
               <button className="btn-secondary text-sm" onClick={handleImportClick}>📥 Import</button>
               <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportFile} className="hidden" />
 
-              {/* --- PREVIEW BUTTON (FIXED) --- */}
               <button
                 className={`text-sm px-4 py-2 rounded transition ${
                   lesson.share_slug
@@ -634,7 +662,6 @@ export default function LessonBuilder() {
                 }`}
                 onClick={handlePreview}
                 disabled={!lesson.share_slug}
-                title={!lesson.share_slug ? 'Save the lesson to enable preview' : 'Open student preview in new tab'}
               >
                 👁️ Preview
               </button>
@@ -904,12 +931,33 @@ export default function LessonBuilder() {
                             min={1}
                           />
                         </label>
+                        {/* Audio upload for this activity */}
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            className="text-xs"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) handleActivityAudioUpload(idx, file)
+                              e.target.value = ''
+                            }}
+                          />
+                          {act.audio_url && (
+                            <span className="text-xs text-green-600">🔊</span>
+                          )}
+                        </div>
                       </div>
                       <Editor
                         activity={act}
                         onChange={(updated) => updateActivity(idx, updated)}
                         inputRef={setInputRef}
                       />
+                      {act.audio_url && (
+                        <div className="mt-2">
+                          <AudioPlayer src={act.audio_url} />
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       {idx > 0 && (
