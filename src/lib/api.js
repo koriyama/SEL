@@ -1,3 +1,4 @@
+// src/lib/api.js
 import { supabase } from './supabaseClient'
 
 // ---------- helpers ----------
@@ -10,6 +11,15 @@ function assertNoError(error, context) {
     console.error(context, error)
     throw new Error(`${context}: ${error.message}`)
   }
+}
+
+// ---------- RLS session variable for student updates ----------
+export async function setStudentName(name) {
+  if (!name) return;
+  await supabase.rpc('set_config', {
+    parameter: 'app.current_student_name',
+    value: name,
+  });
 }
 
 // ---------- lessons ----------
@@ -157,6 +167,8 @@ export async function listSections(lessonId) {
         id,
         type,
         prompt,
+        prompt_en,
+        prompt_ja,
         config,
         points,
         position,
@@ -191,6 +203,8 @@ export async function saveSections(lessonId, sections) {
     lesson_id: lessonId,
     title: s.title || '',
     intro_text: s.intro_text || '',
+    intro_text_en: s.intro_text_en || '',
+    intro_text_ja: s.intro_text_ja || '',
     position: index
   }))
 
@@ -221,17 +235,23 @@ export async function saveActivities(lessonId, activities, force = false) {
 
   if (!activities.length) return []
 
-  const rows = activities.map((a, index) => ({
-    lesson_id: lessonId,
-    section_id: a.section_id ?? null,
-    type: a.type,
-    prompt: a.prompt,
-    config: a.config || {},
-    points: a.points ?? 1,
-    position: index,
-    audio_url: a.audio_url || null   // <-- NEW
-  }))
+  const rows = activities.map((a, index) => {
+    const audioUrl = a.audio_url || a.config?.audio_url || null;
+    return {
+      lesson_id: lessonId,
+      section_id: a.section_id ?? null,
+      type: a.type,
+      prompt: a.prompt || null,
+      prompt_en: a.prompt_en || null,
+      prompt_ja: a.prompt_ja || null,
+      config: a.config || {},
+      points: a.points ?? 1,
+      position: index,
+      audio_url: audioUrl
+    }
+  })
 
+  console.log('💾 Saving activities with audio_urls:', rows.map(r => ({ id: r.id, audio_url: r.audio_url })))
   const { data, error } = await supabase.from('activities').insert(rows).select()
   assertNoError(error, 'Failed to save activities')
   return data
@@ -269,10 +289,25 @@ export async function saveVocabulary(lessonId, items) {
 
 // ---------- storage ----------
 export async function uploadAudio(file) {
+  if (!file) {
+    console.error('❌ uploadAudio called with no file');
+    throw new Error('No file provided')
+  }
+  console.log('📤 Uploading audio:', file.name, file.size, 'bytes');
+  
   const path = `audio/${Date.now()}-${file.name}`
-  const { error } = await supabase.storage.from('lesson-media').upload(path, file, { upsert: false })
-  assertNoError(error, 'Failed to upload audio')
+  const { error } = await supabase.storage.from('lesson-media').upload(path, file, { 
+    upsert: false,
+    cacheControl: '3600'
+  })
+  
+  if (error) {
+    console.error('❌ Supabase upload error:', error)
+    throw new Error(`Failed to upload audio: ${error.message}`)
+  }
+  
   const { data } = supabase.storage.from('lesson-media').getPublicUrl(path)
+  console.log('✅ Audio uploaded, URL:', data.publicUrl)
   return data.publicUrl
 }
 
@@ -354,7 +389,7 @@ export async function getResultsForLesson(lessonId) {
 
 // ---------- Save & Exit ----------
 export async function saveLessonProgress(lessonId, currentSectionIndex, currentActivityIndex, draftAnswers) {
-  const user = { id: 'test-user' }; // bypass auth for sandbox
+  const user = { id: 'test-user' };
   const { data, error } = await supabase
     .from('lesson_progress')
     .upsert({
@@ -374,7 +409,7 @@ export async function saveLessonProgress(lessonId, currentSectionIndex, currentA
 }
 
 export async function getLessonProgress(lessonId) {
-  const user = { id: 'test-user' }; // bypass auth for sandbox
+  const user = { id: 'test-user' };
   const { data, error } = await supabase
     .from('lesson_progress')
     .select('*')
@@ -462,21 +497,43 @@ export async function deleteSubmissions(submissionIds) {
   return true
 }
 
-// ---------- custom save/load for submissions ----------
-export async function saveSubmission(submissionId, updates) {
-  const { data, error } = await supabase
-    .from('submissions')
-    .update(updates)
-    .eq('id', submissionId)
-    .select()
-    .single()
-  if (error) {
-    console.error('❌ saveSubmission error:', error);
-    throw new Error(`Failed to save submission: ${error.message}`)
+// ---------- REVISED: saveSubmission with session variable ----------
+export async function saveSubmission(submissionId, updates, studentIdentifier) {
+  // If submissionId is provided, this is an UPDATE
+  if (submissionId) {
+    // Set the session variable so RLS allows the update
+    if (studentIdentifier) {
+      await setStudentName(studentIdentifier);
+    } else {
+      console.warn('⚠️ saveSubmission update without studentIdentifier - RLS might fail.');
+    }
+    const { data, error } = await supabase
+      .from('submissions')
+      .update(updates)
+      .eq('id', submissionId)
+      .select()
+      .single();
+    if (error) {
+      console.error('❌ saveSubmission update error:', error);
+      throw new Error(`Failed to update submission: ${error.message}`);
+    }
+    return data;
+  } else {
+    // INSERT (submissionId is null or undefined)
+    const { data, error } = await supabase
+      .from('submissions')
+      .insert(updates)
+      .select()
+      .single();
+    if (error) {
+      console.error('❌ saveSubmission insert error:', error);
+      throw new Error(`Failed to insert submission: ${error.message}`);
+    }
+    return data;
   }
-  return data
 }
 
+// ---------- getSubmission ----------
 export async function getSubmission(slug, studentName) {
   try {
     const lesson = await getLessonBySlug(slug)

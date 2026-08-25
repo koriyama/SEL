@@ -1,6 +1,7 @@
 // src/pages/TeacherDashboard.jsx
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'react-qr-code';
 import {
   listLessonsWithStats,
   listFolders,
@@ -281,17 +282,13 @@ export default function TeacherDashboard() {
   }
 
   // ---------- FIXED: Copy Link Button ----------
-  // This function now uses the configured base URL (window.location.origin)
-  // which will work for any deployment environment.
   function handleCopyLink(slug) {
-    // Use the current origin (this will be the correct domain for the deployment)
     const baseUrl = window.location.origin
     const url = `${baseUrl}/lesson/${slug}`
     
     navigator.clipboard.writeText(url).then(() => {
       alert('✅ Student lesson link copied to clipboard!')
     }).catch(() => {
-      // Fallback for older browsers
       const textarea = document.createElement('textarea')
       textarea.value = url
       document.body.appendChild(textarea)

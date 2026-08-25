@@ -3,11 +3,13 @@ import { renderInline } from '../../lib/inlineMarkup';
 
 export default function MultipleChoicePlayer({ activity, value = '', onChange, disabled, autoFocus }) {
   const config = activity.config || {};
-  const options = config.options || [];
+  // Try options_en first, then fall back to options
+  let options = config.options_en || config.options || [];
   const prompt = activity.prompt || '';
 
   console.log('🔍 MultipleChoicePlayer config:', config);
   console.log('🔍 MultipleChoicePlayer options:', options);
+  console.log('🔍 MultipleChoicePlayer prompt:', prompt);
 
   if (!options || options.length === 0) {
     return (

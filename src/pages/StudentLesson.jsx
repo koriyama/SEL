@@ -11,8 +11,17 @@ import {
   saveSubmission, 
   getSubmission 
 } from '../lib/api';
-import { gradeGapFill, gradeMultipleChoice, gradeGapFillDropdown, gradeSentenceJumble, gradeVocabularyMatching } from '../lib/grading';
+import { 
+  gradeGapFill, 
+  gradeMultipleChoice, 
+  gradeGapFillDropdown, 
+  gradeSentenceJumble, 
+  gradeVocabularyMatching,
+  gradeListening,
+  gradeDictation
+} from '../lib/grading';
 import { renderInline } from '../lib/inlineMarkup';
+import AudioPlayer from '../components/AudioPlayer';
 import GapFillPlayer from '../components/activity-players/GapFillPlayer';
 import MultipleChoicePlayer from '../components/activity-players/MultipleChoicePlayer';
 import ShortAnswerPlayer from '../components/activity-players/ShortAnswerPlayer';
@@ -20,13 +29,202 @@ import ReasoningPlayer from '../components/activity-players/ReasoningPlayer';
 import GapFillDropdownPlayer from '../components/activity-players/GapFillDropdownPlayer';
 import SentenceJumblePlayer from '../components/activity-players/SentenceJumblePlayer';
 import VocabularyMatchingPlayer from '../components/activity-players/VocabularyMatchingPlayer';
+import DictationPlayer from '../components/activity-players/DictationPlayer';
 import ReferenceDrawer from '../components/ReferenceDrawer';
 import SaveExitButton from '../components/SaveExitButton';
+
+// Helper to strip punctuation for display
+function stripPunctuation(word) {
+  return word.replace(/[.,!?;:"]$/, '');
+}
+
+// ---- Language translations ----
+const translations = {
+  en: {
+    enterNameTitle: (title) => `${title}`,
+    enterNameSubtitle: 'Level: {level}',
+    enterNamePrompt: 'Please enter your name to start the lesson.',
+    enterNameImportant: '⚠️ Important: If you return later, use the exact same name (case‑sensitive) to continue your progress.',
+    enterNameAutoSave: '⏳ Your answers are saved automatically as you go.',
+    namePlaceholder: 'Your full name',
+    startButton: 'Start Lesson',
+    previewBadge: '🔍 PREVIEW MODE',
+    instructionsTitle: (title, level, sections, activities) => `📚 ${title} · Level: ${level} · ${sections} sections · ${activities} activities`,
+    aboutLesson: '📖 About this lesson',
+    aboutLessonText: (sections) => `This lesson is divided into ${sections} sections. You'll complete activities in order, and your progress is saved automatically.`,
+    navigation: '📌 Navigation',
+    navItems: [
+      'Use <strong>Next</strong> and <strong>Previous</strong> buttons to move between pages.',
+      'Your answers are saved automatically as you go.',
+      'You can return later using the same name to continue.'
+    ],
+    referenceDrawer: '📂 Reference Drawer',
+    drawerItems: [
+      'Tap the <strong>grey bar</strong> at the bottom of the screen to open/close the reference panel.',
+      'It contains the reading text, audio, images, and vocabulary support.',
+      'You can keep it open while answering questions.'
+    ],
+    drawerExample: '👇 Tap the bar to show/hide',
+    activityTypes: '✅ Activity types',
+    activityList: [
+      '<span class="font-medium">Gap Fill</span> – type the missing word.',
+      '<span class="font-medium">Multiple Choice</span> – select the correct option.',
+      '<span class="font-medium">Sentence Jumble</span> – tap tiles to build the sentence.',
+      '<span class="font-medium">Vocabulary Matching</span> – match terms to definitions.',
+      '<span class="font-medium">Listening</span> – listen to audio and answer questions.',
+      '<span class="font-medium">Dictation</span> – listen and type what you hear.',
+      '<span class="font-medium">Short Answer / Reasoning</span> – write your own response.'
+    ],
+    startLessonButton: '🚀 Start Lesson',
+    wellDone: '🎉 Well done! 🎉',
+    thankYou: 'Thank you for your hard work! Your answers have been submitted.',
+    seeAnswers: '👀 See my answers',
+    hideAnswers: 'Hide my answers',
+    integrityWarning: '📸 Screenshots and copying are not permitted. Please respect academic integrity.',
+    yourAnswers: 'Your answers',
+    yourAnswerLabel: 'Your answer:',
+    statusFull: '✅ Full',
+    statusZero: '❌ Zero',
+    statusPartial: '🟡 Partial',
+    statusReview: '📝 Teacher review',
+    statusNoGrade: '❓ No grade',
+  },
+  ja: {
+    enterNameTitle: (title) => `${title}`,
+    enterNameSubtitle: 'レベル: {level}',
+    enterNamePrompt: 'レッスンを始めるには、お名前を入力してください。',
+    enterNameImportant: '⚠️ 重要: 後で戻る場合は、<strong>同じ名前</strong>（大文字小文字区別）を使用して続けてください。',
+    enterNameAutoSave: '⏳ 回答は自動的に保存されます。',
+    namePlaceholder: 'フルネーム',
+    startButton: 'レッスンを始める',
+    previewBadge: '🔍 プレビューモード',
+    instructionsTitle: (title, level, sections, activities) => `📚 ${title} · レベル: ${level} · ${sections} セクション · ${activities} アクティビティ`,
+    aboutLesson: '📖 このレッスンについて',
+    aboutLessonText: (sections) => `このレッスンは ${sections} つのセクションに分かれています。順番にアクティビティを進め、進捗は自動保存されます。`,
+    navigation: '📌 ナビゲーション',
+    navItems: [
+      '<strong>次へ</strong> と <strong>前へ</strong> のボタンを使ってページを移動します。',
+      '回答は自動保存されます。',
+      '同じ名前を使えば後で続きから始められます。'
+    ],
+    referenceDrawer: '📂 リファレンスドロワー',
+    drawerItems: [
+      '画面下部の <strong>灰色のバー</strong> をタップしてリファレンスパネルを開閉します。',
+      'リーディング本文、音声、画像、語彙サポートが含まれています。',
+      '質問に答えながらパネルを開いたままにできます。'
+    ],
+    drawerExample: '👇 バーをタップして表示/非表示',
+    activityTypes: '✅ アクティビティの種類',
+    activityList: [
+      '<span class="font-medium">穴埋め</span> – 欠けている単語を入力します。',
+      '<span class="font-medium">選択問題</span> – 正しい選択肢を選びます。',
+      '<span class="font-medium">並べ替え</span> – 単語をタップして文を完成させます。',
+      '<span class="font-medium">語彙マッチング</span> – 単語と定義をマッチさせます。',
+      '<span class="font-medium">リスニング</span> – 音声を聞いて質問に答えます。',
+      '<span class="font-medium">ディクテーション</span> – 聞いて、聞こえた通りに入力します。',
+      '<span class="font-medium">記述/論述</span> – 自分の考えを書きます。'
+    ],
+    startLessonButton: '🚀 レッスンを始める',
+    wellDone: '🎉 お疲れ様でした！ 🎉',
+    thankYou: 'ご協力ありがとうございました。回答が送信されました。',
+    seeAnswers: '👀 自分の回答を見る',
+    hideAnswers: '回答を隠す',
+    integrityWarning: '📸 スクリーンショットやコピーは禁止されています。学術的誠実さを守ってください。',
+    yourAnswers: 'あなたの回答',
+    yourAnswerLabel: 'あなたの回答:',
+    statusFull: '✅ 完全正解',
+    statusZero: '❌ 不正解',
+    statusPartial: '🟡 部分点',
+    statusReview: '📝 教師確認',
+    statusNoGrade: '❓ 未評価',
+  }
+};
+
+// ---- Player Components ----
+function ListeningPlayer({ activity, value, onChange, disabled, language }) {
+  const config = activity.config || {};
+  const questions = config.questions || [];
+  const prompt = activity.prompt || '';
+  const [answers, setAnswers] = useState(() => {
+    try { return value ? JSON.parse(value) : {}; } catch { return {}; }
+  });
+
+  const handleAnswer = (qIdx, val) => {
+    const newAnswers = { ...answers, [qIdx]: val };
+    setAnswers(newAnswers);
+    onChange(JSON.stringify(newAnswers));
+  };
+
+  if (!questions || questions.length === 0) {
+    return <div className="text-yellow-600 text-sm">No questions available for this listening activity.</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {prompt && <div className="text-sm font-medium">{renderInline(prompt)}</div>}
+      {config.audio_url && <AudioPlayer src={config.audio_url} />}
+      <div className="space-y-3">
+        {questions.map((q, idx) => {
+          const questionText = language === 'en' ? q.question_en : q.question_ja || q.question_en;
+          return (
+            <div key={idx} className="border-t border-gray-200 pt-2">
+              <p className="font-medium text-sm">{questionText}</p>
+              {q.type === 'multiple_choice' && (
+                <div className="space-y-1 mt-1">
+                  {q.options.map((opt, oi) => (
+                    <label key={oi} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name={`q${idx}`}
+                        checked={answers[idx] === oi}
+                        onChange={() => handleAnswer(idx, oi)}
+                        disabled={disabled}
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              )}
+              {q.type === 'true_false' && (
+                <div className="flex gap-4 mt-1">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name={`q${idx}`}
+                      checked={answers[idx] === 0}
+                      onChange={() => handleAnswer(idx, 0)}
+                      disabled={disabled}
+                    /> True
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name={`q${idx}`}
+                      checked={answers[idx] === 1}
+                      onChange={() => handleAnswer(idx, 1)}
+                      disabled={disabled}
+                    /> False
+                  </label>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function StudentLesson() {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get('draft') === 'true';
+
+  const [language, setLanguage] = useState(() => {
+    return localStorage.getItem('preferred_language') || 'en';
+  });
+
+  const t = translations[language];
 
   const [lesson, setLesson] = useState(null);
   const [sections, setSections] = useState([]);
@@ -36,6 +234,7 @@ export default function StudentLesson() {
 
   const [studentName, setStudentName] = useState('');
   const [nameSubmitted, setNameSubmitted] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [answers, setAnswers] = useState({});
   const [submissionId, setSubmissionId] = useState(null);
@@ -48,7 +247,7 @@ export default function StudentLesson() {
 
   const activitiesContainerRef = useRef(null);
 
-  // Load lesson (unchanged)
+  // Load lesson
   useEffect(() => {
     async function loadLesson() {
       try {
@@ -95,6 +294,7 @@ export default function StudentLesson() {
           if (storedName) {
             setStudentName(storedName);
             setNameSubmitted(true);
+            setShowInstructions(true);
             const existing = await getSubmission(slug, storedName);
             if (existing) {
               console.log('📋 Found existing submission:', existing.id);
@@ -120,7 +320,7 @@ export default function StudentLesson() {
     loadLesson();
   }, [slug, isPreview]);
 
-  // Auto-save (unchanged)
+  // Auto-save
   const saveDraft = useCallback(async () => {
     if (isPreview || isSubmitted || !submissionId) return;
     if (isSaving.current) return;
@@ -130,14 +330,14 @@ export default function StudentLesson() {
       await saveSubmission(submissionId, {
         current_page: currentPage,
         answers,
-      });
+      }, studentName);   // <-- FIX: added studentName
       console.log('✅ Auto-save successful');
     } catch (err) {
       console.error('❌ Auto-save failed:', err);
     } finally {
       isSaving.current = false;
     }
-  }, [isPreview, isSubmitted, submissionId, currentPage, answers]);
+  }, [isPreview, isSubmitted, submissionId, currentPage, answers, studentName]);
 
   useEffect(() => {
     if (!submissionId || isPreview || isSubmitted) return;
@@ -146,7 +346,7 @@ export default function StudentLesson() {
     return () => clearTimeout(saveTimer.current);
   }, [saveDraft, submissionId, isPreview, isSubmitted, answers, currentPage]);
 
-  // ---- Autofocus on page change ----
+  // ---- Autofocus ----
   useEffect(() => {
     if (loading || sections.length === 0) return;
     const container = activitiesContainerRef.current;
@@ -159,7 +359,7 @@ export default function StudentLesson() {
     });
   }, [currentPage, sections, loading]);
 
-  // ---- Prevent copying / screenshots on results screen ----
+  // ---- Prevent copying ----
   useEffect(() => {
     if (!isSubmitted) return;
 
@@ -179,11 +379,6 @@ export default function StudentLesson() {
       }
     };
 
-    const handleCopy = (e) => {
-      e.preventDefault();
-      return false;
-    };
-
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
 
@@ -200,6 +395,7 @@ export default function StudentLesson() {
     if (!trimmedName) return;
     localStorage.setItem(`smiley_student_name_${slug}`, trimmedName);
     setNameSubmitted(true);
+    setShowInstructions(true);
 
     if (!isPreview) {
       try {
@@ -246,7 +442,7 @@ export default function StudentLesson() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle final submission (grading) – updated to include new types
+  // Handle final submission
   const handleFinalSubmit = async () => {
     if (isPreview || isSubmitted) {
       console.warn('⚠️ Cannot submit: preview or already submitted');
@@ -282,6 +478,12 @@ export default function StudentLesson() {
             case 'vocabulary_matching':
               result = gradeVocabularyMatching(activity.config, userValue);
               break;
+            case 'listening':
+              result = gradeListening(activity.config, userValue);
+              break;
+            case 'dictation':
+              result = gradeDictation(activity.config, userValue);
+              break;
             default:
               return;
           }
@@ -303,7 +505,7 @@ export default function StudentLesson() {
         score: finalScore,
         max_auto_score: maxAutoScore,
         status: 'completed'
-      });
+      }, studentName);   // <-- FIX: added studentName
 
       setAnswers(gradedAnswers);
       setIsSubmitted(true);
@@ -325,7 +527,7 @@ export default function StudentLesson() {
       await saveSubmission(submissionId, {
         current_page: currentPage,
         answers,
-      });
+      }, studentName);   // <-- FIX: added studentName
       console.log('✅ Saved before exit');
       localStorage.removeItem(`smiley_student_name_${slug}`);
       window.location.href = `/lesson/${slug}`;
@@ -333,42 +535,82 @@ export default function StudentLesson() {
       console.error('❌ Save & Exit failed:', err);
       alert('Failed to save progress. Please try again.');
     }
-  }, [submissionId, currentPage, answers, slug]);
+  }, [submissionId, currentPage, answers, slug, studentName]);
 
-  // Render activity player – updated with new types
+  // Render activity player
   const renderActivity = (activity, index) => {
     if (!activity || !activity.type) {
       return <div className="text-red-500">Invalid activity</div>;
     }
 
     const questionNumber = index + 1;
-    const displayPrompt = activity.prompt ? `Q${questionNumber}. ${activity.prompt}` : `Q${questionNumber}`;
-    const activityWithNumber = { ...activity, prompt: displayPrompt };
+    
+    // Get the prompt in the selected language
+    let prompt = '';
+    if (language === 'en') {
+      prompt = activity.prompt_en || activity.prompt || '';
+    } else {
+      prompt = activity.prompt_ja || '';
+    }
+    // If no prompt in selected language, use English as fallback
+    if (!prompt) prompt = activity.prompt_en || activity.prompt || '';
+    
+    const displayPrompt = prompt ? `Q${questionNumber}. ${prompt}` : `Q${questionNumber}`;
+    const activityWithPrompt = { ...activity, prompt: displayPrompt };
 
     const commonProps = {
       key: activity.id,
-      activity: activityWithNumber,
+      activity: activityWithPrompt,
       value: answers[activity.id] || '',
       onChange: (val) => handleAnswerChange(activity.id, val),
       disabled: isSubmitted || isPreview,
       autoFocus: index === 0 && currentPage === 0,
+      language: language,
     };
 
+    // For multiple-choice, override config with language-specific options
+    if (activity.type === 'multiple_choice') {
+      const config = activity.config || {};
+      const options = language === 'en' ? config.options_en : config.options_ja;
+      const displayOptions = options && options.length > 0 && options.some(o => o) ? options : config.options_en || [];
+      const activityWithLanguage = {
+        ...activityWithPrompt,
+        config: {
+          ...config,
+          options: displayOptions,
+          correctIndex: config.correctIndex
+        }
+      };
+      return <MultipleChoicePlayer {...commonProps} activity={activityWithLanguage} />;
+    }
+
+    // For gap_fill and gap_fill_dropdown – pass language prop (already in commonProps)
+    if (activity.type === 'gap_fill') {
+      return <GapFillPlayer {...commonProps} />;
+    }
+    if (activity.type === 'gap_fill_dropdown') {
+      return <GapFillDropdownPlayer {...commonProps} />;
+    }
+
+    // For other activity types
     switch (activity.type) {
-      case 'gap_fill':
-        return <GapFillPlayer {...commonProps} />;
-      case 'multiple_choice':
-        return <MultipleChoicePlayer {...commonProps} />;
       case 'short_answer':
         return <ShortAnswerPlayer {...commonProps} />;
       case 'reasoning':
         return <ReasoningPlayer {...commonProps} />;
-      case 'gap_fill_dropdown':
-        return <GapFillDropdownPlayer {...commonProps} />;
       case 'sentence_jumble':
-        return <SentenceJumblePlayer {...commonProps} />;
+        return (
+          <SentenceJumblePlayer
+            {...commonProps}
+            onSubmit={() => goToPage(currentPage + 1)}
+          />
+        );
       case 'vocabulary_matching':
         return <VocabularyMatchingPlayer {...commonProps} />;
+      case 'listening':
+        return <ListeningPlayer {...commonProps} />;
+      case 'dictation':
+        return <DictationPlayer {...commonProps} />;
       default:
         return (
           <div className="text-red-500 p-2 bg-red-50 dark:bg-red-900/20 rounded">
@@ -377,9 +619,6 @@ export default function StudentLesson() {
         );
     }
   };
-
-  // ... rest of the component (loading, error, welcome, results, main player) remains the same
-  // I'll include the rest for completeness, but the only change is the switch above.
 
   // ---------- Loading ----------
   if (loading) {
@@ -409,25 +648,46 @@ export default function StudentLesson() {
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 max-w-md w-full">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              {lesson.title}
+              {t.enterNameTitle(lesson.title)}
             </h1>
             {lesson.level && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Level: {lesson.level}
+                {t.enterNameSubtitle.replace('{level}', lesson.level)}
               </p>
             )}
             <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-              Please enter your name to start the lesson.
+              {t.enterNamePrompt}
             </p>
             <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3">
-              <p>⚠️ Important: If you return later, use the <strong>exact same name</strong> (case‑sensitive) to continue your progress.</p>
-              <p className="mt-1">⏳ Your answers are saved automatically as you go.</p>
+              <p dangerouslySetInnerHTML={{ __html: t.enterNameImportant }} />
+              <p className="mt-1">{t.enterNameAutoSave}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-center mb-4">
+            <div className="inline-flex rounded-full border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button
+                onClick={() => { setLanguage('en'); localStorage.setItem('preferred_language', 'en'); }}
+                className={`px-4 py-1 text-sm font-medium transition ${
+                  language === 'en' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                English
+              </button>
+              <button
+                onClick={() => { setLanguage('ja'); localStorage.setItem('preferred_language', 'ja'); }}
+                className={`px-4 py-1 text-sm font-medium transition ${
+                  language === 'ja' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+              >
+                日本語
+              </button>
             </div>
           </div>
 
           {isPreview && (
             <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-semibold px-3 py-1 rounded-full mb-4">
-              🔍 PREVIEW MODE
+              {t.previewBadge}
             </span>
           )}
           <form onSubmit={handleNameSubmit} className="space-y-4">
@@ -435,7 +695,7 @@ export default function StudentLesson() {
               type="text"
               value={studentName}
               onChange={(e) => setStudentName(e.target.value)}
-              placeholder="Your full name"
+              placeholder={t.namePlaceholder}
               className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               autoFocus
               required
@@ -444,9 +704,73 @@ export default function StudentLesson() {
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition text-base min-h-[48px]"
             >
-              Start Lesson
+              {t.startButton}
             </button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Instructions ----------
+  if (showInstructions) {
+    const totalActivities = sections.reduce((acc, sec) => acc + (sec.activities || []).length, 0);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50 dark:bg-gray-950">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 max-w-2xl w-full">
+          <div className="text-center mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              {t.instructionsTitle(lesson.title, lesson.level, sections.length, totalActivities)}
+            </h1>
+          </div>
+
+          <div className="space-y-4 text-gray-700 dark:text-gray-300">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+              <h3 className="font-semibold text-blue-800 dark:text-blue-300">{t.aboutLesson}</h3>
+              <p className="text-sm mt-1">{t.aboutLessonText(sections.length)}</p>
+            </div>
+
+            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+              <h3 className="font-semibold text-green-800 dark:text-green-300">{t.navigation}</h3>
+              <ul className="text-sm list-disc list-inside mt-1 space-y-1">
+                {t.navItems.map((item, idx) => (
+                  <li key={idx} dangerouslySetInnerHTML={{ __html: item }} />
+                ))}
+              </ul>
+            </div>
+
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+              <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">{t.referenceDrawer}</h3>
+              <ul className="text-sm list-disc list-inside mt-1 space-y-1">
+                {t.drawerItems.map((item, idx) => (
+                  <li key={idx} dangerouslySetInnerHTML={{ __html: item }} />
+                ))}
+              </ul>
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <span className="inline-block bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-full">
+                  {t.drawerExample}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+              <h3 className="font-semibold text-purple-800 dark:text-purple-300">{t.activityTypes}</h3>
+              <ul className="text-sm list-disc list-inside mt-1 space-y-1">
+                {t.activityList.map((item, idx) => (
+                  <li key={idx} dangerouslySetInnerHTML={{ __html: item }} />
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={() => setShowInstructions(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition text-lg min-h-[56px]"
+            >
+              {t.startLessonButton}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -458,46 +782,136 @@ export default function StudentLesson() {
     const answerSummary = allActivities.map((act, idx) => {
       const qNum = idx + 1;
       const rawAnswer = answers[act.id];
-      let displayAnswer = rawAnswer || '—';
+      let displayAnswer = '—';
       
-      if (act.type === 'multiple_choice' && rawAnswer !== undefined) {
-        const options = act.config?.options || [];
-        const selectedIndex = parseInt(rawAnswer, 10);
-        displayAnswer = (selectedIndex >= 0 && selectedIndex < options.length) 
-          ? options[selectedIndex] 
-          : rawAnswer;
-      }
-      // For gap_fill_dropdown, show selected options
-      if (act.type === 'gap_fill_dropdown' && rawAnswer) {
-        const indices = rawAnswer.split(',').map(s => parseInt(s.trim(), 10));
-        const options = act.config?.dropdownOptions || [];
-        displayAnswer = indices.map((idx, i) => {
-          const opts = options[i] || [];
-          return (idx >= 0 && idx < opts.length) ? opts[idx] : '—';
-        }).join(', ');
+      if (rawAnswer !== undefined && rawAnswer !== '') {
+        switch (act.type) {
+          case 'multiple_choice': {
+            const options = act.config?.options_en || act.config?.options || [];
+            const selectedIndex = parseInt(rawAnswer, 10);
+            displayAnswer = (selectedIndex >= 0 && selectedIndex < options.length) 
+              ? options[selectedIndex] 
+              : rawAnswer;
+            break;
+          }
+          case 'gap_fill_dropdown': {
+            const indices = rawAnswer.split(',').map(s => parseInt(s.trim(), 10));
+            const options = act.config?.dropdownOptions || [];
+            const selectedWords = indices.map((idx, i) => {
+              const opts = options[i] || [];
+              return (idx >= 0 && idx < opts.length) ? opts[idx] : '—';
+            });
+            displayAnswer = selectedWords.join(', ');
+            break;
+          }
+          case 'sentence_jumble': {
+            const indices = rawAnswer.split(',').map(s => parseInt(s.trim(), 10));
+            const words = act.config?.words || [];
+            const orderedWords = indices.map(idx => {
+              const word = words[idx] || '?';
+              return stripPunctuation(word);
+            });
+            displayAnswer = orderedWords.join(' ');
+            break;
+          }
+          case 'vocabulary_matching': {
+            try {
+              const matches = JSON.parse(rawAnswer);
+              const pairs = act.config?.pairs || [];
+              const matchStrings = Object.entries(matches)
+                .filter(([termIdx, defIdx]) => {
+                  const t = parseInt(termIdx, 10);
+                  const d = parseInt(defIdx, 10);
+                  return !isNaN(t) && !isNaN(d) && t >= 0 && t < pairs.length && d >= 0 && d < pairs.length;
+                })
+                .map(([termIdx, defIdx]) => {
+                  const t = parseInt(termIdx, 10);
+                  const d = parseInt(defIdx, 10);
+                  return `${pairs[t].term} → ${pairs[d].definition}`;
+                });
+              const wrongMatches = Object.entries(matches)
+                .filter(([termIdx, defIdx]) => {
+                  const d = parseInt(defIdx, 10);
+                  return d === -1;
+                })
+                .map(([termIdx]) => {
+                  const t = parseInt(termIdx, 10);
+                  return `${pairs[t].term} → (wrong attempt)`;
+                });
+              const allMatches = [...matchStrings, ...wrongMatches];
+              displayAnswer = allMatches.length > 0 ? allMatches.join('; ') : 'No matches made';
+            } catch {
+              displayAnswer = rawAnswer;
+            }
+            break;
+          }
+          case 'listening': {
+            try {
+              const answersObj = JSON.parse(rawAnswer);
+              const questions = act.config?.questions || [];
+              const parts = Object.entries(answersObj)
+                .filter(([qIdx, val]) => val !== undefined && val !== -1)
+                .map(([qIdx, val]) => {
+                  const q = questions[parseInt(qIdx)] || {};
+                  const opt = q.options ? q.options[val] : (val === 0 ? 'True' : 'False');
+                  return `Q${parseInt(qIdx) + 1}: ${opt}`;
+                });
+              displayAnswer = parts.length > 0 ? parts.join('; ') : 'No answers';
+            } catch {
+              displayAnswer = rawAnswer;
+            }
+            break;
+          }
+          case 'dictation':
+            displayAnswer = rawAnswer;
+            break;
+          case 'gap_fill':
+          case 'short_answer':
+          case 'reasoning':
+          default:
+            displayAnswer = rawAnswer;
+            break;
+        }
       }
 
       const gradedKey = act.id + '_graded';
       const graded = answers[gradedKey];
-      let status = 'teacher review';
-      let statusClass = 'bg-yellow-100 text-yellow-700';
-      
-      if (['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching'].includes(act.type)) {
+      let statusText = '';
+      let statusClass = '';
+      let scoreDisplay = '';
+
+      const autoGradedTypes = ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation'];
+
+      if (autoGradedTypes.includes(act.type)) {
         if (graded) {
-          if (graded.autoCorrect === true) {
-            status = 'correct';
+          const earned = graded.score || 0;
+          const max = graded.maxScore || 0;
+          const percent = max > 0 ? (earned / max) * 100 : 0;
+          scoreDisplay = `${earned}/${max}`;
+
+          if (percent === 100) {
+            statusText = t.statusFull;
             statusClass = 'bg-green-100 text-green-700';
-          } else {
-            status = 'incorrect';
+          } else if (percent === 0) {
+            statusText = t.statusZero;
             statusClass = 'bg-red-100 text-red-700';
+          } else {
+            statusText = t.statusPartial;
+            statusClass = 'bg-yellow-100 text-yellow-700';
           }
         } else {
-          status = 'incorrect';
-          statusClass = 'bg-red-100 text-red-700';
+          statusText = t.statusNoGrade;
+          statusClass = 'bg-gray-100 text-gray-700';
+          scoreDisplay = '?/0';
         }
+      } else {
+        statusText = t.statusReview;
+        statusClass = 'bg-blue-100 text-blue-700';
+        scoreDisplay = '';
       }
 
-      return { qNum, prompt: act.prompt, answer: displayAnswer, status, statusClass };
+      const promptForDisplay = (language === 'en' ? act.prompt_en : act.prompt_ja) || act.prompt || '';
+      return { qNum, prompt: promptForDisplay, answer: displayAnswer, statusText, statusClass, scoreDisplay };
     });
 
     return (
@@ -506,7 +920,7 @@ export default function StudentLesson() {
           <div className="text-center">
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Well done! 🎉
+              {t.wellDone}
             </h2>
             {score !== null && (
               <div className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-2xl font-bold px-6 py-3 rounded-full mt-2">
@@ -514,42 +928,51 @@ export default function StudentLesson() {
               </div>
             )}
             <p className="text-gray-600 dark:text-gray-400 mt-4">
-              Thank you for your hard work! Your answers have been submitted.
+              {t.thankYou}
             </p>
 
             <button
               onClick={() => setShowAnswers(!showAnswers)}
               className="mt-6 inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition"
             >
-              {showAnswers ? 'Hide my answers' : '👀 See my answers'}
+              {showAnswers ? t.hideAnswers : t.seeAnswers}
             </button>
 
             <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
-              📸 Screenshots and copying are not permitted. Please respect academic integrity.
+              {t.integrityWarning}
             </div>
           </div>
 
           {showAnswers && (
             <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Your answers</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{t.yourAnswers}</h3>
               <div
-                className="space-y-2 max-h-96 overflow-y-auto select-none no-copy"
+                className="space-y-3 max-h-96 overflow-y-auto select-none no-copy"
                 onCopy={(e) => e.preventDefault()}
                 onContextMenu={(e) => e.preventDefault()}
                 style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
               >
                 {answerSummary.map((item) => (
-                  <div key={item.qNum} className="text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
-                    <div className="flex justify-between">
-                      <span className="font-medium">Q{item.qNum}:</span>
-                      <span className="text-gray-600 dark:text-gray-400">{item.prompt}</span>
+                  <div key={item.qNum} className="text-sm border-b border-gray-100 dark:border-gray-800 pb-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="font-medium text-gray-700 dark:text-gray-300">Q{item.qNum}:</span>
+                      <span className="text-gray-600 dark:text-gray-400 flex-1">{item.prompt}</span>
                     </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-gray-500 dark:text-gray-400">Your answer:</span>
-                      <span className="font-mono">{item.answer}</span>
-                      <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${item.statusClass}`}>
-                        {item.status}
+                    <div className="flex justify-between items-center mt-1 pl-4">
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">{t.yourAnswerLabel}</span>
+                      <span className="font-mono text-sm text-gray-800 dark:text-gray-200 flex-1 ml-2">
+                        {item.answer}
                       </span>
+                      <div className="flex items-center gap-2 ml-2">
+                        {item.scoreDisplay && (
+                          <span className="text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                            {item.scoreDisplay}
+                          </span>
+                        )}
+                        <span className={`text-xs font-mono px-2 py-0.5 rounded-full whitespace-nowrap ${item.statusClass}`}>
+                          {item.statusText}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -578,6 +1001,14 @@ export default function StudentLesson() {
   const isFirstPage = currentPage === 0;
   const isLastPage = currentPage === totalPages - 1;
 
+  const sectionTitle = currentSection?.title || '';
+  let sectionIntro = '';
+  if (language === 'en') {
+    sectionIntro = currentSection?.intro_text_en || currentSection?.intro_text || '';
+  } else {
+    sectionIntro = currentSection?.intro_text_ja || currentSection?.intro_text_en || currentSection?.intro_text || '';
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-32 md:pb-8">
       <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 px-4 py-3 md:px-8">
@@ -591,6 +1022,16 @@ export default function StudentLesson() {
             </p>
           </div>
           <div className="flex items-center gap-2 ml-4">
+            <button
+              onClick={() => {
+                const newLang = language === 'en' ? 'ja' : 'en';
+                setLanguage(newLang);
+                localStorage.setItem('preferred_language', newLang);
+              }}
+              className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+            >
+              {language === 'en' ? '日本語' : 'English'}
+            </button>
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full whitespace-nowrap">
               {currentPage + 1} / {totalPages}
             </span>
@@ -610,34 +1051,23 @@ export default function StudentLesson() {
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                {renderInline(currentSection.title)}
+                {renderInline(sectionTitle)}
               </h2>
-              {currentSection.intro_text && (
+              {sectionIntro && (
                 <div className="text-gray-600 dark:text-gray-300 text-base md:text-lg prose prose-gray dark:prose-invert max-w-none">
-                  {renderInline(currentSection.intro_text)}
+                  {renderInline(sectionIntro)}
                 </div>
               )}
             </div>
 
             <div ref={activitiesContainerRef} className="space-y-6">
               {(currentSection.activities || []).map((activity, idx) => {
-                // Render audio player if activity has audio_url
-                const audioPlayer = activity.audio_url ? (
-                  <div className="mt-2">
-                    <audio controls className="w-full max-w-xs">
-                      <source src={activity.audio_url} />
-                      Your browser does not support the audio element.
-                    </audio>
-                  </div>
-                ) : null;
-
                 return (
                   <div
                     key={activity.id}
                     className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 md:p-6"
                   >
                     {renderActivity(activity, idx)}
-                    {audioPlayer}
                   </div>
                 );
               })}

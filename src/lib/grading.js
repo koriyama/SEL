@@ -1,7 +1,7 @@
 // src/lib/grading.js
 
 export function isAutoGraded(type) {
-  return ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching'].includes(type);
+  return ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation'].includes(type);
 }
 
 export function gradeActivity(activity, value) {
@@ -19,6 +19,10 @@ export function gradeActivity(activity, value) {
       return gradeSentenceJumble(config, value);
     case 'vocabulary_matching':
       return gradeVocabularyMatching(config, value);
+    case 'listening':
+      return gradeListening(config, value);
+    case 'dictation':
+      return gradeDictation(config, value);
     case 'short_answer':
       return gradeShortAnswer(config, value);
     case 'reasoning':
@@ -83,12 +87,9 @@ export function gradeMultipleChoice(config, value) {
   };
 }
 
-// New: Gap Fill Dropdown
 export function gradeGapFillDropdown(config, value) {
-  // value is a comma-separated list of selected indices (e.g., "0,2,1")
   const selectedIndices = value ? value.split(',').map(s => parseInt(s.trim(), 10)) : [];
   const dropdownOptions = config.dropdownOptions || [];
-  // The correct answer is the first option in each line (index 0)
   let score = 0;
   let allCorrect = true;
   let maxScore = dropdownOptions.length;
@@ -104,47 +105,101 @@ export function gradeGapFillDropdown(config, value) {
     }
   }
 
-  // Only auto-correct if all blanks are filled
   const allFilled = selectedIndices.length >= dropdownOptions.length && selectedIndices.every(idx => idx >= 0);
   const autoCorrect = allFilled ? allCorrect : null;
 
   return { score, autoCorrect, maxScore };
 }
 
-// New: Sentence Jumble
 export function gradeSentenceJumble(config, value) {
   const correctWords = config.words || [];
   const userOrder = value ? value.split(',').map(s => parseInt(s.trim(), 10)) : [];
-  // Check if user order matches the correct order (0,1,2,...)
-  const isCorrect = userOrder.length === correctWords.length && userOrder.every((idx, i) => idx === i);
-  const score = isCorrect ? 1 : 0; // full score if correct, else 0
+
+  if (correctWords.length === 0 || userOrder.length === 0) {
+    return { score: 0, autoCorrect: false, maxScore: correctWords.length || 1 };
+  }
+
+  let correctPositions = 0;
+  const maxScore = correctWords.length;
+
+  for (let i = 0; i < Math.min(userOrder.length, correctWords.length); i++) {
+    if (userOrder[i] === i) {
+      correctPositions++;
+    }
+  }
+
+  const allCorrect = correctPositions === correctWords.length && userOrder.length === correctWords.length;
+
   return {
-    score: score,
-    autoCorrect: isCorrect,
-    maxScore: 1,
+    score: correctPositions,
+    autoCorrect: allCorrect,
+    maxScore: maxScore,
   };
 }
 
-// New: Vocabulary Matching
 export function gradeVocabularyMatching(config, value) {
-  let matches = {};
+  let firstAttempts = {};
   try {
-    matches = value ? JSON.parse(value) : {};
+    firstAttempts = value ? JSON.parse(value) : {};
   } catch { /* ignore */ }
+
   const pairs = config.pairs || [];
   let correctCount = 0;
-  for (const [termIdx, defIdx] of Object.entries(matches)) {
-    const idx = parseInt(termIdx, 10);
-    if (idx >= 0 && idx < pairs.length && defIdx === idx) {
+
+  for (const [termIdx, defIdx] of Object.entries(firstAttempts)) {
+    const t = parseInt(termIdx, 10);
+    const d = parseInt(defIdx, 10);
+    if (t === d) {
       correctCount++;
     }
   }
+
   const maxScore = pairs.length;
   const allCorrect = correctCount === maxScore;
+
   return {
     score: correctCount,
     autoCorrect: allCorrect,
     maxScore: maxScore,
+  };
+}
+
+export function gradeListening(config, value) {
+  const questions = config.questions || [];
+  if (!value) return { score: 0, autoCorrect: null, maxScore: questions.length };
+  
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return { score: 0, autoCorrect: null, maxScore: questions.length };
+  }
+
+  let correctCount = 0;
+  for (let i = 0; i < questions.length; i++) {
+    const userAnswer = parsed[i];
+    const correct = questions[i].correct_answer;
+    if (userAnswer !== undefined && userAnswer === correct) {
+      correctCount++;
+    }
+  }
+  const allCorrect = correctCount === questions.length;
+  return {
+    score: correctCount,
+    autoCorrect: allCorrect,
+    maxScore: questions.length,
+  };
+}
+
+export function gradeDictation(config, value) {
+  const expected = (config.expected_text || '').trim().toLowerCase();
+  const user = (value || '').trim().toLowerCase();
+  if (!expected) return { score: 0, autoCorrect: null, maxScore: 1 };
+  const isCorrect = user === expected;
+  return {
+    score: isCorrect ? 1 : 0,
+    autoCorrect: isCorrect,
+    maxScore: 1,
   };
 }
 

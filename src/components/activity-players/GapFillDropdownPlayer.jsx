@@ -1,9 +1,20 @@
+// src/components/activity-players/GapFillDropdownPlayer.jsx
 import { renderInline } from '../../lib/inlineMarkup';
 
-export default function GapFillDropdownPlayer({ activity, value = '', onChange, disabled, autoFocus }) {
+export default function GapFillDropdownPlayer({ activity, value = '', onChange, disabled, autoFocus, language = 'en' }) {
   const config = activity.config || {};
   const prompt = activity.prompt || '';
-  const text = config.text || '';
+  
+  // Choose text based on language with fallback
+  let text = '';
+  if (language === 'ja' && config.text_ja) {
+    text = config.text_ja;
+  } else if (config.text_en) {
+    text = config.text_en;
+  } else {
+    text = config.text || '';
+  }
+
   const dropdownOptions = config.dropdownOptions || [];
 
   // Parse text to extract blanks ([[...]]) and text segments
@@ -25,30 +36,28 @@ export default function GapFillDropdownPlayer({ activity, value = '', onChange, 
 
   // The value is stored as a comma-separated list of selected indices (e.g., "0,2,1")
   const selectedIndices = value ? value.split(',').map(s => parseInt(s.trim(), 10)) : [];
-  const blankValues = selectedIndices.map(idx => {
-    const options = dropdownOptions[blankIndex] || [];
-    return (idx >= 0 && idx < options.length) ? options[idx] : '';
-  });
+  // Ensure we have enough entries
+  while (selectedIndices.length < blankIndex) selectedIndices.push(-1);
 
   const handleSelect = (blankIdx, selectedIndex) => {
     const newIndices = [...selectedIndices];
-    newIndices[blankIdx] = selectedIndex;
-    // Fill missing with -1
-    for (let i = 0; i < blankIndex; i++) {
-      if (newIndices[i] === undefined) newIndices[i] = -1;
-    }
+    newIndices[blankIdx] = parseInt(selectedIndex, 10);
     onChange(newIndices.join(','));
   };
 
+  // If no text at all, show an error
   if (!text) {
     return (
       <div className="space-y-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
         {prompt && <div className="text-sm font-medium">{renderInline(prompt)}</div>}
-        <p className="text-yellow-700 dark:text-yellow-300 text-sm">⚠️ This activity has no text.</p>
+        <p className="text-yellow-700 dark:text-yellow-300 text-sm">
+          ⚠️ This activity has no text. Please add text in the lesson builder.
+        </p>
       </div>
     );
   }
 
+  // If text exists but no blanks, just display the text
   if (blankIndex === 0) {
     return (
       <div className="space-y-2">
@@ -56,6 +65,7 @@ export default function GapFillDropdownPlayer({ activity, value = '', onChange, 
         <div className="text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
           {renderInline(text)}
         </div>
+        <p className="text-xs text-gray-400">No blanks found in this activity.</p>
       </div>
     );
   }
@@ -79,7 +89,7 @@ export default function GapFillDropdownPlayer({ activity, value = '', onChange, 
             <select
               key={`blank-${idx}`}
               value={currentVal}
-              onChange={(e) => handleSelect(part.index, parseInt(e.target.value, 10))}
+              onChange={(e) => handleSelect(part.index, e.target.value)}
               disabled={disabled}
               autoFocus={autoFocus && part.index === 0}
               className="mx-1 px-2 py-0.5 border-b-2 border-blue-400 bg-transparent focus:outline-none focus:border-blue-600 min-w-[80px] inline-block disabled:opacity-50 disabled:border-gray-300"

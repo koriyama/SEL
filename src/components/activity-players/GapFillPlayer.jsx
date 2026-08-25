@@ -1,10 +1,20 @@
 // src/components/activity-players/GapFillPlayer.jsx
+import { useState, useEffect, useRef } from 'react';
 import { renderInline } from '../../lib/inlineMarkup';
 
-export default function GapFillPlayer({ activity, value = '', onChange, disabled, autoFocus }) {
+export default function GapFillPlayer({ activity, value = '', onChange, disabled, autoFocus, language = 'en' }) {
   const config = activity.config || {};
   const prompt = activity.prompt || '';
-  const textWithBlanks = config.text || '';
+  
+  // Choose text based on language
+  let textWithBlanks = '';
+  if (language === 'ja' && config.text_ja) {
+    textWithBlanks = config.text_ja;
+  } else if (config.text_en) {
+    textWithBlanks = config.text_en;
+  } else {
+    textWithBlanks = config.text || '';
+  }
 
   // Parse the text to extract blanks and text segments
   const parts = [];
@@ -33,7 +43,46 @@ export default function GapFillPlayer({ activity, value = '', onChange, disabled
     });
   }
 
-  const blankValues = value ? value.split(',').map(s => s.trim()) : [];
+  // Parse the initial values from the parent
+  const initialValues = value ? value.split(',').map(s => s.trim()) : [];
+
+  // Local state for each blank's text
+  const [blankValues, setBlankValues] = useState(() => {
+    const vals = [...initialValues];
+    while (vals.length < blankIndex) vals.push('');
+    return vals.slice(0, blankIndex);
+  });
+
+  // When parent value changes, update local state (e.g., on load or reset)
+  useEffect(() => {
+    const newVals = value ? value.split(',').map(s => s.trim()) : [];
+    const filled = [...newVals];
+    while (filled.length < blankIndex) filled.push('');
+    setBlankValues(filled.slice(0, blankIndex));
+  }, [value, blankIndex]);
+
+  // Notify parent when a blank loses focus (or on unmount)
+  const handleBlur = () => {
+    const trimmed = blankValues.map(v => v.trim());
+    const joined = trimmed.join(', ');
+    if (joined !== value) {
+      onChange(joined);
+    }
+  };
+
+  // Update local state on input change
+  const handleChange = (index, newText) => {
+    const newVals = [...blankValues];
+    newVals[index] = newText;
+    setBlankValues(newVals);
+  };
+
+  // Also update on unmount
+  useEffect(() => {
+    return () => {
+      handleBlur();
+    };
+  }, [blankValues]);
 
   if (!textWithBlanks) {
     return (
@@ -69,29 +118,39 @@ export default function GapFillPlayer({ activity, value = '', onChange, disabled
           if (part.type === 'text') {
             return <span key={`text-${idx}`}>{renderInline(part.content)}</span>;
           }
+          const blankIdx = part.index;
           return (
-            <input
+            <textarea
               key={`blank-${idx}`}
-              type="text"
-              value={blankValues[part.index] || ''}
-              onChange={(e) => {
-                const newValues = [...blankValues];
-                newValues[part.index] = e.target.value;
-                onChange(newValues.join(', '));
-              }}
+              rows={1}
+              value={blankValues[blankIdx] || ''}
+              onChange={(e) => handleChange(blankIdx, e.target.value)}
+              onBlur={handleBlur}
               disabled={disabled}
-              autoFocus={autoFocus && part.index === 0}
-              className="mx-1 px-2 py-0.5 border-b-2 border-blue-400 bg-transparent focus:outline-none focus:border-blue-600 min-w-[80px] w-auto inline-block text-center disabled:opacity-50 disabled:border-gray-300"
-              placeholder="__"
-              style={{ minWidth: '80px' }}
+              autoFocus={autoFocus && blankIdx === 0}
+              className="mx-1 px-2 py-0.5 border-b-2 border-blue-400 bg-transparent focus:outline-none focus:border-blue-600 min-w-[120px] w-auto inline-block align-bottom resize-none overflow-hidden disabled:opacity-50 disabled:border-gray-300"
+              placeholder="Type answer (spaces allowed)"
+              style={{ 
+                minWidth: '120px',
+                height: '2rem',
+                lineHeight: '1.5rem',
+                verticalAlign: 'bottom'
+              }}
+              spellCheck="false"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
             />
           );
         })}
       </div>
 
-      <p className="text-xs text-gray-400">
-        {blankIndex} blank{blankIndex > 1 ? 's' : ''} • Enter each answer separated by commas if needed
-      </p>
+      <div className="flex justify-between text-xs text-gray-400">
+        <span>
+          {blankIndex} blank{blankIndex > 1 ? 's' : ''}
+        </span>
+        <span>💡 You can type multiple words in each blank.</span>
+      </div>
     </div>
   );
 }
