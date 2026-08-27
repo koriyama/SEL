@@ -28,6 +28,97 @@ const DEFAULT_SECTION_INTRO = {
   ja: '指示を読んで、以下のアクティビティを完了してください。'
 }
 
+// ---- TEMPLATE DEFINITIONS ----
+const TEMPLATES = {
+  full: {
+    label: '📚 Full Lesson',
+    description: 'All 9 activity types (vocabulary, gap fill, MC, jumble, listening, dictation, short answer, reasoning)',
+    sections: [
+      {
+        id: `temp-section-${Date.now()}`,
+        title: 'Section 1',
+        intro_text_en: '',
+        intro_text_ja: '',
+        activities: [
+          { type: 'vocabulary_matching', config: { pairs: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'gap_fill_dropdown', config: { text: '', text_en: '', text_ja: '', dropdownOptions: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'multiple_choice', config: { options_en: ['', '', '', ''], options_ja: ['', '', '', ''], correctIndex: -1 }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'gap_fill', config: { answers: [], text_en: '', text_ja: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'sentence_jumble', config: { words: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'listening', config: { audio_url: '', questions: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'dictation', config: { audio_url: '', expected_text: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'short_answer', config: { suggestedAnswer: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'reasoning', config: {}, points: 1, prompt_en: '', prompt_ja: '', audio_url: null }
+        ]
+      }
+    ]
+  },
+  reading_mc_gap: {
+    label: '📖 Reading + Comprehension',
+    description: 'Multiple Choice + Gap Fill (great for reading lessons)',
+    sections: [
+      {
+        id: `temp-section-${Date.now()}`,
+        title: 'Section 1',
+        intro_text_en: '',
+        intro_text_ja: '',
+        activities: [
+          { type: 'multiple_choice', config: { options_en: ['', '', '', ''], options_ja: ['', '', '', ''], correctIndex: -1 }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'gap_fill', config: { answers: [], text_en: '', text_ja: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null }
+        ]
+      }
+    ]
+  },
+  quiz: {
+    label: '❓ Quick Quiz',
+    description: 'Just multiple choice questions (fast to build)',
+    sections: [
+      {
+        id: `temp-section-${Date.now()}`,
+        title: 'Section 1',
+        intro_text_en: '',
+        intro_text_ja: '',
+        activities: [
+          { type: 'multiple_choice', config: { options_en: ['', '', '', ''], options_ja: ['', '', '', ''], correctIndex: -1 }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null }
+        ]
+      }
+    ]
+  },
+  listening_dictation: {
+    label: '🎧 Listening & Dictation',
+    description: 'Listening comprehension + dictation practice',
+    sections: [
+      {
+        id: `temp-section-${Date.now()}`,
+        title: 'Section 1',
+        intro_text_en: '',
+        intro_text_ja: '',
+        activities: [
+          { 
+            type: 'listening', 
+            config: { 
+              audio_url: '', 
+              questions: [ 
+                { question_en: '', question_ja: '', type: 'multiple_choice', options: ['', ''], correct_answer: -1 } 
+              ] 
+            }, 
+            points: 1, 
+            prompt_en: '', 
+            prompt_ja: '', 
+            audio_url: null 
+          },
+          { type: 'dictation', config: { audio_url: '', expected_text: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null }
+        ]
+      }
+    ]
+  },
+  blank: {
+    label: '📝 Start from Scratch',
+    description: 'Empty lesson – 0 sections, 0 activities',
+    sections: []
+  }
+}
+
 // ---- Activity Editor Components (unchanged) ----
 function GapFillEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
@@ -561,6 +652,8 @@ export default function LessonBuilder() {
   const [activities, setActivities] = useState([])
   const [vocabulary, setVocabulary] = useState([])
 
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+
   const [audioFile, setAudioFile] = useState(null)
   const [imageFiles, setImageFiles] = useState([])
 
@@ -568,12 +661,42 @@ export default function LessonBuilder() {
   const inputRefs = useRef({})
   const focusedRef = useRef(new Set())
 
+  // Helper to apply a template
+  function applyTemplate(templateKey) {
+    const template = TEMPLATES[templateKey]
+    if (!template) return
+
+    const newSections = template.sections.map(s => ({
+      ...s,
+      id: `temp-section-${Date.now()}-${Math.random()}`,
+      activities: s.activities.map(act => ({
+        ...act,
+        id: `temp-act-${Date.now()}-${Math.random()}`,
+        section_id: null // will be filled on save
+      }))
+    }))
+
+    const newActivities = newSections.flatMap(s => s.activities)
+
+    setSections(newSections)
+    setActivities(newActivities)
+    setVocabulary([])
+    setShowTemplateModal(false)
+  }
+
   useEffect(() => {
     if (!id) {
+      // New lesson – show the template modal
       setLesson({ title: '', level: 'B1', reading_text: '', audio_url: null, images: [] })
+      setShowTemplateModal(true)
+      // Initially set to blank until user chooses
+      setSections([])
+      setActivities([])
+      setVocabulary([])
       return
     }
 
+    // EDITING EXISTING LESSON
     async function load() {
       try {
         const l = await getLesson(id)
@@ -629,8 +752,11 @@ export default function LessonBuilder() {
       }
 
       const lessonId = savedLesson.id
-      const savedSections = await saveSections(lessonId, sections)
-      
+
+      // --- Strip 'activities' from sections before saving ---
+      const sectionData = sections.map(({ activities, ...rest }) => rest)
+      const savedSections = await saveSections(lessonId, sectionData)
+
       const sectionIdMap = {}
       sections.forEach((oldSection, index) => {
         const newSection = savedSections[index]
@@ -639,12 +765,16 @@ export default function LessonBuilder() {
         }
       })
 
+      const firstSectionId = savedSections.length > 0 ? savedSections[0].id : null
+
       const updatedActivities = activities.map(act => {
-        if (!act.section_id) return act
-        if (sectionIdMap[act.section_id]) {
+        if (act.section_id && sectionIdMap[act.section_id]) {
           return { ...act, section_id: sectionIdMap[act.section_id] }
         }
-        return { ...act, section_id: null }
+        if (!act.section_id && firstSectionId) {
+          return { ...act, section_id: firstSectionId }
+        }
+        return act
       })
 
       await saveActivities(lessonId, updatedActivities, false)
@@ -672,6 +802,7 @@ export default function LessonBuilder() {
       }
     } catch (err) {
       setError(err.message)
+      console.error('Save error:', err)
     } finally {
       setSaving(false)
       setPublishing(false)
@@ -869,7 +1000,6 @@ export default function LessonBuilder() {
         const data = JSON.parse(event.target.result)
         if (!data.lesson) throw new Error('Invalid lesson file: missing "lesson"')
 
-        // Lesson metadata
         setLesson({
           title: data.lesson.title || 'Untitled',
           level: data.lesson.level || 'B1',
@@ -878,13 +1008,11 @@ export default function LessonBuilder() {
           images: data.lesson.images || []
         })
 
-        // ----- Extract sections with their activities -----
         const importedSections = data.sections || []
         let newSections = []
         let newActivities = []
 
         if (importedSections.length === 0 && data.activities && data.activities.length > 0) {
-          // No sections: put all activities in a default section
           const defaultSection = {
             id: `temp-${Date.now()}-0-${Math.random()}`,
             title: 'Activities',
@@ -908,7 +1036,6 @@ export default function LessonBuilder() {
             })
           })
         } else {
-          // Create a section for each imported section and copy its activities
           importedSections.forEach((s, idx) => {
             const secId = `temp-${Date.now()}-${idx}-${Math.random()}`
             newSections.push({
@@ -918,20 +1045,14 @@ export default function LessonBuilder() {
               intro_text_ja: s.intro_text_ja || ''
             })
 
-            // Activities belonging to this section (from the JSON's 'activities' array)
-            // We need to find activities that have a section_id matching this section's old ID
-            // or we can use the fact that the JSON's sections array may contain an 'activities' property
             let sectionActivities = []
             if (s.activities && Array.isArray(s.activities)) {
               sectionActivities = s.activities
             } else {
-              // If the JSON only has a top-level 'activities' array, filter by section_id
               const oldSectionId = s.id || idx
               sectionActivities = (data.activities || []).filter(a => {
-                // Try to match by old section_id
                 if (a.section_id !== undefined && a.section_id !== null) {
                   if (a.section_id === oldSectionId) return true
-                  // If oldSectionId is a number and a.section_id is also a number, compare
                   if (!isNaN(oldSectionId) && !isNaN(a.section_id) && parseInt(a.section_id, 10) === parseInt(oldSectionId, 10)) {
                     return true
                   }
@@ -944,7 +1065,6 @@ export default function LessonBuilder() {
               const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
               const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
               const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
-              // Ensure config has bilingual fields if needed
               if (type === 'multiple_choice' && !config.options_en && config.options) {
                 config.options_en = config.options
                 config.options_ja = config.options
@@ -964,14 +1084,12 @@ export default function LessonBuilder() {
                 prompt_ja: a.prompt_ja || '',
                 config: config,
                 points: a.points ?? 1,
-                section_id: secId, // assign to this new section
+                section_id: secId,
                 audio_url: a.audio_url || null
               })
             })
           })
 
-          // If there are activities that were not assigned to any section (e.g., because they had no section_id),
-          // put them in the first section
           const assignedActivityIds = new Set(newActivities.map(a => a.id))
           const unassigned = (data.activities || []).filter(a => !assignedActivityIds.has(`temp-${a.id}`))
           if (unassigned.length > 0 && newSections.length > 0) {
@@ -1009,7 +1127,6 @@ export default function LessonBuilder() {
         setSections(newSections)
         setActivities(newActivities)
 
-        // Vocabulary
         let newVocabulary = []
         const vocabData = data.vocabulary || []
         if (vocabData.length > 0) {
@@ -1040,7 +1157,7 @@ export default function LessonBuilder() {
     window.open(`/lesson/${lesson.share_slug}?draft=true`, '_blank')
   }
 
-  // Render (unchanged)
+  // Render
   if (error) {
     return (
       <div className="min-h-screen p-6">
@@ -1067,6 +1184,46 @@ export default function LessonBuilder() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Template Selection Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-3xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-display mb-2">Choose a Lesson Template</h2>
+            <p className="text-muted text-sm mb-6">
+              Pick a starting structure for your new lesson. You can add, remove, or rearrange activities and sections later.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(TEMPLATES).map(([key, template]) => (
+                <button
+                  key={key}
+                  className="text-left border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200"
+                  onClick={() => applyTemplate(key)}
+                >
+                  <div className="text-xl font-semibold">{template.label}</div>
+                  <div className="text-sm text-gray-600 mt-1">{template.description}</div>
+                  <div className="text-xs text-gray-400 mt-2">
+                    {template.sections.length} section{template.sections.length !== 1 ? 's' : ''} ·{' '}
+                    {template.sections.reduce((acc, s) => acc + (s.activities ? s.activities.length : 0), 0)} activities
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                className="text-sm text-gray-500 hover:text-gray-700"
+                onClick={() => {
+                  setShowTemplateModal(false)
+                  setSections([])
+                  setActivities([])
+                }}
+              >
+                Cancel (start empty)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">

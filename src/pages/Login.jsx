@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { adminAutoLogin } from '../lib/adminLogin';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -11,21 +12,15 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Auto‑login if admin credentials are present
+  // Optional: pre‑fill email/password from environment variables (for manual login convenience)
   useEffect(() => {
     const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
     const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
-    if (adminEmail && adminPass) {
-      setEmail(adminEmail);
-      setPassword(adminPass);
-      // Optionally auto‑submit after a short delay
-      // (Uncomment if you want instant login without clicking)
-      // setTimeout(() => {
-      //   document.getElementById('admin-login-btn')?.click();
-      // }, 500);
-    }
+    if (adminEmail) setEmail(adminEmail);
+    if (adminPass) setPassword(adminPass);
   }, []);
 
+  // Handle regular login (email + password)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -35,6 +30,24 @@ const Login = () => {
       navigate('/');
     } catch (err) {
       setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle secure admin auto‑login (via serverless function)
+  const handleAdminAutoLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const user = await adminAutoLogin();
+      if (user) {
+        navigate('/');
+      } else {
+        setError('Auto‑login failed. Please log in manually.');
+      }
+    } catch (err) {
+      setError(err.message || 'Auto‑login error');
     } finally {
       setLoading(false);
     }
@@ -97,27 +110,21 @@ const Login = () => {
               {loading ? 'Logging in...' : 'Log in'}
             </button>
           </div>
-
-          {/* Auto‑login button (visible only when admin env vars are set) */}
-          {import.meta.env.VITE_ADMIN_EMAIL && import.meta.env.VITE_ADMIN_PASSWORD && (
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail(import.meta.env.VITE_ADMIN_EMAIL);
-                  setPassword(import.meta.env.VITE_ADMIN_PASSWORD);
-                  // Auto‑submit
-                  setTimeout(() => {
-                    document.getElementById('admin-login-btn')?.click();
-                  }, 100);
-                }}
-                className="text-sm text-blue-600 hover:underline"
-              >
-                🔑 Auto‑Login as Admin (one click)
-              </button>
-            </div>
-          )}
         </form>
+
+        {/* Secure admin auto‑login button (only visible when token is set) */}
+        {import.meta.env.VITE_ADMIN_TOKEN && (
+          <div className="text-center border-t border-gray-200 pt-4">
+            <button
+              type="button"
+              onClick={handleAdminAutoLogin}
+              disabled={loading}
+              className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+            >
+              🔑 Auto‑Login as Admin (one click)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
