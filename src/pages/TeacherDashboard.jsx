@@ -79,19 +79,19 @@ function SortableFolderItem({ folder, count, isSelected, onSelect, onDelete, onR
           onChange={(e) => setEditName(e.target.value)}
           onBlur={handleRenameSubmit}
           onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
-          className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 px-2 py-1 text-xs border border-crest rounded focus:outline-none focus:ring-1 focus:ring-crest"
           autoFocus
         />
       ) : (
         <button
           onClick={() => onSelect(folder.id)}
-          className={`flex-1 text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-1 ${
+          className={`flex-1 text-left px-3 py-1.5 rounded-md text-xs transition-colors flex items-center gap-1 ${
             isSelected
-              ? 'bg-blue-50 text-blue-700 font-medium'
-              : 'text-gray-600 hover:bg-gray-100'
+              ? 'bg-crestSoft text-crest font-medium'
+              : 'text-muted hover:bg-paper'
           }`}
         >
-          <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mr-1 text-gray-300 hover:text-gray-500">
+          <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mr-1 text-rule hover:text-ink">
             ⋮
           </span>
           <span onDoubleClick={handleDoubleClick}>📁 {folder.name} ({count})</span>
@@ -99,7 +99,7 @@ function SortableFolderItem({ folder, count, isSelected, onSelect, onDelete, onR
       )}
       <button
         onClick={() => onDelete(folder.id)}
-        className="text-gray-400 hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="text-muted hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
         title="Delete folder"
       >
         ×
@@ -281,11 +281,10 @@ export default function TeacherDashboard() {
     }
   }
 
-  // ---------- FIXED: Copy Link Button ----------
+  // ---------- Copy Link ----------
   function handleCopyLink(slug) {
     const baseUrl = window.location.origin
     const url = `${baseUrl}/lesson/${slug}`
-    
     navigator.clipboard.writeText(url).then(() => {
       alert('✅ Student lesson link copied to clipboard!')
     }).catch(() => {
@@ -330,23 +329,23 @@ export default function TeacherDashboard() {
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">📚 Lesson Dashboard</h1>
-              <Link to="/builder" className="btn-primary">
-                + New Lesson
-              </Link>
-            </div>
+      <div className="min-h-screen bg-paper">
+        {/* Header – more compact */}
+        <header className="bg-surface border-b border-rule sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
+            <h1 className="text-xl font-display text-ink">📚 SEL Lesson Repository</h1>
+            <Link to="/builder" className="btn-primary text-sm px-4 py-1.5">
+              + New Lesson
+            </Link>
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex gap-6">
-            <aside className="w-56 flex-shrink-0">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sticky top-20">
-                <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wider mb-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+          <div className="flex gap-5">
+            {/* Sidebar – compact */}
+            <aside className="w-48 flex-shrink-0">
+              <div className="bg-surface rounded-lg border border-rule p-3 sticky top-20">
+                <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-2">
                   Folders
                 </h2>
 
@@ -354,23 +353,23 @@ export default function TeacherDashboard() {
                   items={folders.map(f => f.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  <nav className="space-y-1">
+                  <nav className="space-y-0.5">
                     <button
                       onClick={() => setSelectedFolderId(null)}
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                      className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
                         selectedFolderId === null
-                          ? 'bg-blue-50 text-blue-700 font-medium'
-                          : 'text-gray-600 hover:bg-gray-100'
+                          ? 'bg-crestSoft text-crest font-medium'
+                          : 'text-muted hover:bg-paper'
                       }`}
                     >
-                      📂 All Lessons ({lessons.length})
+                      📂 All ({lessons.length})
                     </button>
 
                     <div
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                      className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
                         selectedFolderId === 'uncategorized'
-                          ? 'bg-blue-50 text-blue-700 font-medium'
-                          : 'text-gray-600 hover:bg-gray-100'
+                          ? 'bg-crestSoft text-crest font-medium'
+                          : 'text-muted hover:bg-paper'
                       }`}
                       onClick={() => setSelectedFolderId('uncategorized')}
                     >
@@ -394,20 +393,20 @@ export default function TeacherDashboard() {
                   </nav>
                 </SortableContext>
 
-                <form onSubmit={handleCreateFolder} className="mt-4 pt-4 border-t border-gray-200">
+                <form onSubmit={handleCreateFolder} className="mt-3 pt-3 border-t border-rule">
                   <div className="flex gap-1">
                     <input
                       type="text"
                       placeholder="New folder..."
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="flex-1 px-2 py-1 border border-rule rounded text-xs focus:outline-none focus:ring-1 focus:ring-crest"
                       disabled={isCreatingFolder}
                     />
                     <button
                       type="submit"
                       disabled={isCreatingFolder || !newFolderName.trim()}
-                      className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
+                      className="px-2.5 py-1 bg-crest text-paper text-xs rounded hover:bg-crest/80 disabled:opacity-50"
                     >
                       +
                     </button>
@@ -416,27 +415,29 @@ export default function TeacherDashboard() {
               </div>
             </aside>
 
+            {/* Main content – compact cards */}
             <main className="flex-1 min-w-0">
               {loading ? (
-                <div className="text-center py-12 text-gray-500">Loading lessons...</div>
+                <div className="text-center py-8 text-muted text-sm">Loading lessons...</div>
               ) : filteredLessons.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                  <p className="text-gray-500">No lessons in this folder.</p>
-                  <Link to="/builder" className="btn-primary mt-4 inline-block">
+                <div className="bg-surface rounded-lg border border-rule p-8 text-center">
+                  <p className="text-muted text-sm">No lessons in this folder.</p>
+                  <Link to="/builder" className="btn-primary mt-3 inline-block text-sm">
                     Create your first lesson
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
+                  {/* Selection bar – compact */}
                   {filteredLessons.length > 0 && (
-                    <div className="flex items-center gap-3 px-1 py-2">
+                    <div className="flex items-center gap-2 px-1 py-1.5 bg-surface rounded border border-rule">
                       <input
                         type="checkbox"
                         checked={isAllSelected}
                         onChange={toggleSelectAll}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        className="w-3.5 h-3.5 text-crest rounded border-rule focus:ring-crest"
                       />
-                      <span className="text-sm text-gray-500">
+                      <span className="text-xs text-muted">
                         {selectedLessonIds.length} selected
                       </span>
                       {selectedLessonIds.length > 0 && (
@@ -447,9 +448,9 @@ export default function TeacherDashboard() {
                               if (val) handleBulkMove(val === 'null' ? null : val)
                               e.target.value = ''
                             }}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="text-xs border border-rule rounded px-2 py-0.5 bg-surface focus:outline-none focus:ring-1 focus:ring-crest"
                           >
-                            <option value="">Move selected to...</option>
+                            <option value="">Move to...</option>
                             <option value="null">📄 Uncategorized</option>
                             {folders.map(f => (
                               <option key={f.id} value={f.id}>📁 {f.name}</option>
@@ -457,7 +458,7 @@ export default function TeacherDashboard() {
                           </select>
                           <button
                             onClick={() => setSelectedLessonIds([])}
-                            className="text-sm text-gray-400 hover:text-gray-600"
+                            className="text-xs text-muted hover:text-ink"
                           >
                             Clear
                           </button>
@@ -466,175 +467,177 @@ export default function TeacherDashboard() {
                     </div>
                   )}
 
-                  {filteredLessons.map((lesson) => (
-                    <div
-                      key={lesson.id}
-                      className={`bg-white rounded-lg shadow-sm border p-5 hover:shadow-md transition-shadow ${
-                        selectedLessonIds.includes(lesson.id) ? 'border-blue-400 ring-1 ring-blue-400' : 'border-gray-200'
-                      }`}
-                      data-lesson-id={lesson.id}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedLessonIds.includes(lesson.id)}
-                            onChange={() => toggleSelectLesson(lesson.id)}
-                            className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              {editingLessonId === lesson.id ? (
-                                <input
-                                  type="text"
-                                  value={editLessonTitle}
-                                  onChange={(e) => setEditLessonTitle(e.target.value)}
-                                  onBlur={() => {
-                                    if (editLessonTitle.trim() && editLessonTitle.trim() !== lesson.title) {
-                                      handleRenameLesson(lesson.id, editLessonTitle.trim())
-                                    } else {
-                                      setEditingLessonId(null)
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
+                  {/* Lesson cards – compact grid */}
+                  <div className="grid grid-cols-1 gap-2">
+                    {filteredLessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={`bg-surface rounded-lg border p-3 hover:shadow-sm transition-shadow ${
+                          selectedLessonIds.includes(lesson.id) ? 'border-crest ring-1 ring-crest' : 'border-rule'
+                        }`}
+                        data-lesson-id={lesson.id}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedLessonIds.includes(lesson.id)}
+                              onChange={() => toggleSelectLesson(lesson.id)}
+                              className="mt-1 w-3.5 h-3.5 text-crest rounded border-rule focus:ring-crest"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {editingLessonId === lesson.id ? (
+                                  <input
+                                    type="text"
+                                    value={editLessonTitle}
+                                    onChange={(e) => setEditLessonTitle(e.target.value)}
+                                    onBlur={() => {
                                       if (editLessonTitle.trim() && editLessonTitle.trim() !== lesson.title) {
                                         handleRenameLesson(lesson.id, editLessonTitle.trim())
                                       } else {
                                         setEditingLessonId(null)
                                       }
-                                    }
-                                    if (e.key === 'Escape') {
-                                      setEditingLessonId(null)
-                                    }
-                                  }}
-                                  className="text-lg font-semibold text-gray-900 border border-blue-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  autoFocus
-                                />
-                              ) : (
-                                <h3
-                                  className="text-lg font-semibold text-gray-900 truncate cursor-pointer hover:text-blue-600"
-                                  onDoubleClick={() => {
-                                    setEditingLessonId(lesson.id)
-                                    setEditLessonTitle(lesson.title)
-                                  }}
-                                  title="Double-click to rename"
-                                >
-                                  {lesson.title}
-                                </h3>
-                              )}
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                lesson.status === 'published'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-yellow-100 text-yellow-700'
-                              }`}>
-                                {lesson.status}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {lesson.level}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-500">
-                              <span>📝 {lesson.completedCount || 0} completions</span>
-                              {lesson.avgPercent !== null && (
-                                <span>📊 Avg: {lesson.avgPercent}%</span>
-                              )}
-                              <span className="text-xs text-gray-400">
-                                {new Date(lesson.created_at).toLocaleDateString()}
-                              </span>
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        if (editLessonTitle.trim() && editLessonTitle.trim() !== lesson.title) {
+                                          handleRenameLesson(lesson.id, editLessonTitle.trim())
+                                        } else {
+                                          setEditingLessonId(null)
+                                        }
+                                      }
+                                      if (e.key === 'Escape') setEditingLessonId(null)
+                                    }}
+                                    className="text-sm font-medium text-ink border border-crest rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-crest"
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <h3
+                                    className="text-sm font-medium text-ink truncate cursor-pointer hover:text-crest"
+                                    onDoubleClick={() => {
+                                      setEditingLessonId(lesson.id)
+                                      setEditLessonTitle(lesson.title)
+                                    }}
+                                    title="Double‑click to rename"
+                                  >
+                                    {lesson.title}
+                                  </h3>
+                                )}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                  lesson.status === 'published'
+                                    ? 'bg-forestSoft text-forest'
+                                    : 'bg-amberSoft text-amber'
+                                }`}>
+                                  {lesson.status}
+                                </span>
+                                <span className="text-[10px] text-muted font-mono">
+                                  {lesson.level}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-3 mt-0.5 text-[10px] text-muted">
+                                <span>📝 {lesson.completedCount || 0} completions</span>
+                                {lesson.avgPercent !== null && (
+                                  <span>📊 Avg: {lesson.avgPercent}%</span>
+                                )}
+                                <span className="text-rule">
+                                  {new Date(lesson.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <select
-                            value={lesson.folder_id || ''}
-                            onChange={(e) => handleMoveLesson(lesson.id, e.target.value || null)}
-                            className="text-xs border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          >
-                            <option value="">Move to...</option>
-                            <option value="">📄 Uncategorized</option>
-                            {folders.map(f => (
-                              <option key={f.id} value={f.id}>📁 {f.name}</option>
-                            ))}
-                          </select>
-
-                          <button
-                            onClick={() => handleCopyLink(lesson.share_slug)}
-                            className="text-xs text-blue-600 hover:underline px-2 py-1 whitespace-nowrap"
-                            title="Copy student URL"
-                          >
-                            📋 Copy Link
-                          </button>
-
-                          <Link
-                            to={`/builder/${lesson.id}`}
-                            className="text-xs text-indigo-600 hover:underline px-2 py-1 whitespace-nowrap font-medium"
-                          >
-                            ✏️ Edit
-                          </Link>
-
-                          <Link
-                            to={`/results/${lesson.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-gray-600 hover:underline px-2 py-1 whitespace-nowrap"
-                          >
-                            Results
-                          </Link>
-
-                          <button
-                            onClick={() => handleDuplicate(lesson.id)}
-                            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 whitespace-nowrap"
-                          >
-                            Copy
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteLesson(lesson.id, lesson.title)}
-                            className="text-xs text-red-600 hover:text-red-800 px-2 py-1 whitespace-nowrap font-medium"
-                          >
-                            🗑️ Delete
-                          </button>
-
-                          {lesson.status === 'draft' ? (
-                            <button
-                              onClick={() => handlePublish(lesson.id)}
-                              className="text-xs bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 whitespace-nowrap"
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <select
+                              value={lesson.folder_id || ''}
+                              onChange={(e) => handleMoveLesson(lesson.id, e.target.value || null)}
+                              className="text-[10px] border border-rule rounded px-1.5 py-0.5 bg-surface focus:outline-none focus:ring-1 focus:ring-crest"
                             >
-                              Publish
-                            </button>
-                          ) : (
+                              <option value="">Move</option>
+                              <option value="">📄 Uncategorized</option>
+                              {folders.map(f => (
+                                <option key={f.id} value={f.id}>📁 {f.name}</option>
+                              ))}
+                            </select>
+
                             <button
-                              onClick={() => handleUnpublish(lesson.id)}
-                              className="text-xs bg-gray-300 text-gray-700 px-3 py-1 rounded hover:bg-gray-400 whitespace-nowrap"
+                              onClick={() => handleCopyLink(lesson.share_slug)}
+                              className="text-[10px] text-crest hover:underline px-1.5 py-0.5 whitespace-nowrap"
+                              title="Copy student URL"
                             >
-                              Unpublish
+                              📋 Copy
                             </button>
-                          )}
+
+                            <Link
+                              to={`/builder/${lesson.id}`}
+                              className="text-[10px] text-crest hover:underline px-1.5 py-0.5 whitespace-nowrap font-medium"
+                            >
+                              ✏️ Edit
+                            </Link>
+
+                            <Link
+                              to={`/results/${lesson.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-muted hover:underline px-1.5 py-0.5 whitespace-nowrap"
+                            >
+                              Results
+                            </Link>
+
+                            <button
+                              onClick={() => handleDuplicate(lesson.id)}
+                              className="text-[10px] text-muted hover:text-ink px-1.5 py-0.5 whitespace-nowrap"
+                            >
+                              Copy
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteLesson(lesson.id, lesson.title)}
+                              className="text-[10px] text-red-600 hover:text-red-800 px-1.5 py-0.5 whitespace-nowrap font-medium"
+                            >
+                              🗑️
+                            </button>
+
+                            {lesson.status === 'draft' ? (
+                              <button
+                                onClick={() => handlePublish(lesson.id)}
+                                className="text-[10px] bg-forest text-paper px-2 py-0.5 rounded hover:bg-forest/80 whitespace-nowrap"
+                              >
+                                Publish
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleUnpublish(lesson.id)}
+                                className="text-[10px] bg-rule text-ink px-2 py-0.5 rounded hover:bg-rule/80 whitespace-nowrap"
+                              >
+                                Unpublish
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </main>
           </div>
         </div>
 
+        {/* Bottom selection bar – floating */}
         {selectedLessonIds.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 px-6 py-3 flex items-center gap-4 z-30">
-            <span className="text-sm font-medium text-gray-700">
+          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-surface rounded-lg shadow-lg border border-rule px-4 py-2 flex items-center gap-3 z-30">
+            <span className="text-xs font-medium text-ink">
               {selectedLessonIds.length} lesson{selectedLessonIds.length > 1 ? 's' : ''} selected
             </span>
-            <div className="h-6 w-px bg-gray-300" />
+            <div className="h-4 w-px bg-rule" />
             <select
               onChange={(e) => {
                 const val = e.target.value
                 if (val) handleBulkMove(val === 'null' ? null : val)
                 e.target.value = ''
               }}
-              className="text-sm border border-gray-300 rounded px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-xs border border-rule rounded px-2 py-0.5 bg-surface focus:outline-none focus:ring-1 focus:ring-crest"
             >
               <option value="">Move to folder...</option>
               <option value="null">📄 Uncategorized</option>
@@ -644,7 +647,7 @@ export default function TeacherDashboard() {
             </select>
             <button
               onClick={() => setSelectedLessonIds([])}
-              className="text-sm text-gray-400 hover:text-gray-600"
+              className="text-xs text-muted hover:text-ink"
             >
               × Close
             </button>

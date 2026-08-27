@@ -1,7 +1,117 @@
+// src/pages/LessonResults.jsx
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getLesson, getResultsForLesson, deleteSubmissions, listSections } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
+
+// ---------- Helper to format a stored answer based on activity type ----------
+function formatResponseText(activityType, storedValue, config) {
+  // If no value or empty, return empty string
+  if (storedValue === undefined || storedValue === null || storedValue === '') {
+    return ''
+  }
+
+  const value = String(storedValue)
+
+  switch (activityType) {
+    case 'multiple_choice': {
+      // Try to get options from config (legacy) or options_en (new)
+      let options = config?.options || config?.options_en || []
+      if (!Array.isArray(options) || options.length === 0) {
+        // Fallback: if options_ja is available but options_en isn't, use that
+        options = config?.options_ja || []
+      }
+      if (Array.isArray(options) && options.length > 0) {
+        const idx = parseInt(value, 10)
+        if (!isNaN(idx) && idx >= 0 && idx < options.length) {
+          return options[idx]
+        }
+      }
+      return value // fallback to raw index
+    }
+
+    case 'gap_fill_dropdown': {
+      const dropdownOptions = config?.dropdownOptions || []
+      // value is a comma-separated string of indices (e.g., "0,2,1")
+      const indices = value.split(',').map(s => parseInt(s.trim(), 10))
+      const chosenWords = indices.map((idx, i) => {
+        const opts = dropdownOptions[i] || []
+        return (!isNaN(idx) && idx >= 0 && idx < opts.length) ? opts[idx] : '—'
+      })
+      return chosenWords.join(', ')
+    }
+
+    case 'sentence_jumble': {
+      const words = config?.words || []
+      // value is a comma-separated string of indices (e.g., "2,0,1")
+      const indices = value.split(',').map(s => parseInt(s.trim(), 10))
+      const orderedWords = indices.map(idx => {
+        const word = (idx >= 0 && idx < words.length) ? words[idx] : '?'
+        // Strip trailing punctuation for a cleaner display
+        return word.replace(/[.,!?;:"]$/, '')
+      })
+      return orderedWords.join(' ')
+    }
+
+    case 'vocabulary_matching': {
+      const pairs = config?.pairs || []
+      let attempts = {}
+      try {
+        attempts = JSON.parse(value)
+      } catch {
+        return value // raw if not valid JSON
+      }
+      const entries = Object.entries(attempts)
+        .filter(([termIdx, defIdx]) => {
+          const t = parseInt(termIdx, 10)
+          const d = parseInt(defIdx, 10)
+          return !isNaN(t) && !isNaN(d) && t >= 0 && t < pairs.length && d >= 0 && d < pairs.length
+        })
+        .map(([termIdx, defIdx]) => {
+          const t = parseInt(termIdx, 10)
+          const d = parseInt(defIdx, 10)
+          const term = pairs[t]?.term || '?'
+          const definition = pairs[d]?.definition || '?'
+          const isCorrect = t === d
+          return `${term} → ${definition}${isCorrect ? ' ✅' : ' ❌'}`
+        })
+      return entries.length > 0 ? entries.join('; ') : 'No valid matches'
+    }
+
+    case 'listening': {
+      const questions = config?.questions || []
+      let answersObj = {}
+      try {
+        answersObj = JSON.parse(value)
+      } catch {
+        return value
+      }
+      const parts = Object.entries(answersObj)
+        .filter(([qIdx, val]) => val !== undefined && val !== null && val !== -1)
+        .map(([qIdx, val]) => {
+          const idx = parseInt(qIdx, 10)
+          const question = questions[idx] || {}
+          const selected = parseInt(val, 10)
+          // For true/false, options array may not exist; use 'True'/'False'
+          if (question.type === 'true_false' || !question.options) {
+            return `Q${idx+1}: ${selected === 0 ? 'True' : 'False'}`
+          }
+          const opts = question.options || []
+          const chosen = (selected >= 0 && selected < opts.length) ? opts[selected] : '—'
+          return `Q${idx+1}: ${chosen}`
+        })
+      return parts.length > 0 ? parts.join('; ') : 'No answers'
+    }
+
+    case 'gap_fill':
+    case 'dictation':
+    case 'short_answer':
+    case 'reasoning':
+    default:
+      // For these types, the stored value is already the text/answer string
+      return value
+  }
+}
 
 export default function LessonResults() {
   const { lessonId } = useParams()
@@ -51,15 +161,9 @@ export default function LessonResults() {
             const autoCorrect = graded.autoCorrect !== undefined ? graded.autoCorrect : null
 
             const actInfo = activityMap[activityId] || { prompt: `Activity ${activityId}`, position: 999, type: 'unknown', config: {} }
-            // For multiple-choice, map the stored index to the actual option text
-            let displayResponse = responseText
-            if (actInfo.type === 'multiple_choice' && responseText !== undefined) {
-              const options = actInfo.config?.options || []
-              const selectedIndex = parseInt(responseText, 10)
-              displayResponse = (selectedIndex >= 0 && selectedIndex < options.length) 
-                ? options[selectedIndex] 
-                : responseText
-            }
+
+            // Use the helper to format the response text based on activity type
+            const displayResponse = formatResponseText(actInfo.type, responseText, actInfo.config)
 
             return {
               id: `resp-${activityId}`,
@@ -149,7 +253,7 @@ export default function LessonResults() {
       for (const r of s.responses) {
         let resultLabel = 'teacher review'
         // For auto-graded types, treat null as incorrect
-        if (r.type === 'gap_fill' || r.type === 'multiple_choice') {
+        if (r.type === 'gap_fill' || r.type === 'multiple_choice' || r.type === 'gap_fill_dropdown' || r.type === 'sentence_jumble' || r.type === 'vocabulary_matching' || r.type === 'listening' || r.type === 'dictation') {
           if (r.auto_correct === true) {
             resultLabel = 'correct'
           } else {
@@ -308,7 +412,8 @@ export default function LessonResults() {
                       let resultLabel = 'teacher review'
                       let resultClass = 'text-amber-600'
                       // For auto-graded types, treat null as incorrect
-                      if (r.type === 'gap_fill' || r.type === 'multiple_choice') {
+                      const autoTypes = ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
+                      if (autoTypes.includes(r.type)) {
                         if (r.auto_correct === true) {
                           resultLabel = 'correct'
                           resultClass = 'text-green-600'

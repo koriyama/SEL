@@ -330,7 +330,7 @@ export default function StudentLesson() {
       await saveSubmission(submissionId, {
         current_page: currentPage,
         answers,
-      }, studentName);   // <-- FIX: added studentName
+      }, studentName);
       console.log('✅ Auto-save successful');
     } catch (err) {
       console.error('❌ Auto-save failed:', err);
@@ -388,7 +388,7 @@ export default function StudentLesson() {
     };
   }, [isSubmitted]);
 
-  // Handle name submission
+  // ---- UPDATED handleNameSubmit with retry after duplicate ----
   const handleNameSubmit = async (e) => {
     e.preventDefault();
     const trimmedName = studentName.trim().toLowerCase();
@@ -399,32 +399,58 @@ export default function StudentLesson() {
 
     if (!isPreview) {
       try {
-        const existing = await getSubmission(slug, trimmedName);
+        // First try to fetch existing submission
+        let existing = await getSubmission(slug, trimmedName);
         if (existing) {
           console.log('✅ Reusing existing submission:', existing.id);
           setSubmissionId(existing.id);
           setCurrentPage(existing.current_page || 0);
           setAnswers(existing.answers || {});
-        } else {
-          const { data, error } = await supabase
-            .from('submissions')
-            .insert({
-              lesson_id: lesson.id,
-              student_identifier: trimmedName,
-              current_page: 0,
-              answers: {},
-              status: 'in_progress'
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-          console.log('✅ New submission created:', data.id);
-          setSubmissionId(data.id);
+          return;
         }
+
+        // If none, try to insert a new one
+        const { data, error } = await supabase
+          .from('submissions')
+          .insert({
+            lesson_id: lesson.id,
+            student_identifier: trimmedName,
+            current_page: 0,
+            answers: {},
+            status: 'in_progress'
+          })
+          .select()
+          .single();
+
+        if (error) {
+          // If duplicate key, fetch the existing one with a retry
+          if (error.code === '23505') {
+            console.log('⚠️ Duplicate key, fetching existing submission with retry...');
+            // Wait a short moment before retrying
+            await new Promise(resolve => setTimeout(resolve, 100));
+            existing = await getSubmission(slug, trimmedName);
+            if (existing) {
+              console.log('✅ Found existing submission after retry:', existing.id);
+              setSubmissionId(existing.id);
+              setCurrentPage(existing.current_page || 0);
+              setAnswers(existing.answers || {});
+              return;
+            } else {
+              // Still not found – fallback to throw
+              throw new Error('Existing submission exists but cannot be retrieved. Please try again.');
+            }
+          }
+          throw error;
+        }
+
+        console.log('✅ New submission created:', data.id);
+        setSubmissionId(data.id);
       } catch (err) {
         console.error('❌ Error with submission:', err);
         alert('Could not start or resume lesson. Please try again.\n\nError: ' + err.message);
+        // Reset to allow retry
+        setNameSubmitted(false);
+        setShowInstructions(false);
       }
     }
   };
@@ -505,7 +531,7 @@ export default function StudentLesson() {
         score: finalScore,
         max_auto_score: maxAutoScore,
         status: 'completed'
-      }, studentName);   // <-- FIX: added studentName
+      }, studentName);
 
       setAnswers(gradedAnswers);
       setIsSubmitted(true);
@@ -527,7 +553,7 @@ export default function StudentLesson() {
       await saveSubmission(submissionId, {
         current_page: currentPage,
         answers,
-      }, studentName);   // <-- FIX: added studentName
+      }, studentName);
       console.log('✅ Saved before exit');
       localStorage.removeItem(`smiley_student_name_${slug}`);
       window.location.href = `/lesson/${slug}`;

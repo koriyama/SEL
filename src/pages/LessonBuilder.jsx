@@ -28,24 +28,20 @@ const DEFAULT_SECTION_INTRO = {
   ja: '指示を読んで、以下のアクティビティを完了してください。'
 }
 
-// ---- Activity Editor Components ----
+// ---- Activity Editor Components (unchanged) ----
 function GapFillEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
-
   const [answerString, setAnswerString] = useState(
     config.answers ? config.answers.join(', ') : ''
   )
-
   useEffect(() => {
     setAnswerString(config.answers ? config.answers.join(', ') : '')
   }, [config.answers])
-
   const handleAnswerBlur = () => {
     const arr = answerString.split(',').map(s => s.trim()).filter(Boolean)
     updateConfig({ answers: arr })
   }
-
   return (
     <div className="space-y-3">
       <div>
@@ -119,17 +115,14 @@ function GapFillEditor({ activity, onChange, inputRef }) {
 function MultipleChoiceEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
-
   const options_en = config.options_en || []
   const options_ja = config.options_ja || []
   const correctIndex = config.correctIndex !== undefined ? config.correctIndex : -1
-
   const addOption = () => {
     const newOptions_en = [...options_en, '']
     const newOptions_ja = [...options_ja, '']
     updateConfig({ options_en: newOptions_en, options_ja: newOptions_ja })
   }
-
   const removeOption = (index) => {
     if (options_en.length <= 1) return
     const newOptions_en = options_en.filter((_, i) => i !== index)
@@ -139,7 +132,6 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
     else if (correctIndex > index) newCorrectIndex = correctIndex - 1
     updateConfig({ options_en: newOptions_en, options_ja: newOptions_ja, correctIndex: newCorrectIndex })
   }
-
   const updateOption = (index, field, value) => {
     if (field === 'en') {
       const newOptions = [...options_en]
@@ -151,13 +143,10 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
       updateConfig({ options_ja: newOptions })
     }
   }
-
   const selectCorrect = (index) => {
     updateConfig({ correctIndex: index })
   }
-
   const radioName = `correct-option-${activity.id}`
-
   return (
     <div className="space-y-3">
       <div>
@@ -303,7 +292,6 @@ function ListeningEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
   const questions = config.questions || []
-
   const addQuestion = () => {
     const newQ = {
       question_en: '',
@@ -314,30 +302,25 @@ function ListeningEditor({ activity, onChange, inputRef }) {
     }
     updateConfig({ questions: [...questions, newQ] })
   }
-
   const removeQuestion = (idx) => {
     const newQuestions = questions.filter((_, i) => i !== idx)
     updateConfig({ questions: newQuestions })
   }
-
   const updateQuestion = (idx, field, value) => {
     const newQuestions = [...questions]
     newQuestions[idx][field] = value
     updateConfig({ questions: newQuestions })
   }
-
   const updateOption = (qIdx, optIdx, value) => {
     const newQuestions = [...questions]
     newQuestions[qIdx].options[optIdx] = value
     updateConfig({ questions: newQuestions })
   }
-
   const addOption = (qIdx) => {
     const newQuestions = [...questions]
     newQuestions[qIdx].options.push('')
     updateConfig({ questions: newQuestions })
   }
-
   const removeOption = (qIdx, optIdx) => {
     const newQuestions = [...questions]
     newQuestions[qIdx].options.splice(optIdx, 1)
@@ -348,7 +331,6 @@ function ListeningEditor({ activity, onChange, inputRef }) {
     }
     updateConfig({ questions: newQuestions })
   }
-
   return (
     <div className="space-y-3">
       <div>
@@ -492,7 +474,6 @@ function ListeningEditor({ activity, onChange, inputRef }) {
 function DictationEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
-
   return (
     <div className="space-y-3">
       <div>
@@ -740,7 +721,6 @@ export default function LessonBuilder() {
       audio_url: null
     }
 
-    // Initialize config based on type
     switch (type) {
       case 'multiple_choice':
         newActivity.config = { options_en: ['', '', ''], options_ja: ['', '', ''], correctIndex: -1 }
@@ -785,37 +765,21 @@ export default function LessonBuilder() {
     setActivities(newActivities)
   }
 
-  // ---- FIXED: audio upload with immediate UI feedback ----
   async function handleActivityAudioUpload(activityIndex, file) {
-    if (!file) {
-      console.warn('⚠️ No file selected')
-      return
-    }
-    
-    console.log('🎵 Audio file selected:', file.name, file.size, 'bytes')
-    
+    if (!file) return
     try {
-      // Show uploading status by updating the activity state
       const uploadingActivity = { ...activities[activityIndex] }
       uploadingActivity._uploading = true
       updateActivity(activityIndex, uploadingActivity)
-      
       const url = await uploadAudio(file)
-      console.log('✅ Upload complete, URL:', url)
-      
-      // Update the activity with the URL
       const updated = { ...activities[activityIndex] }
       updated.audio_url = url
       updated.config = { ...updated.config, audio_url: url }
       updated._uploading = false
-      updated._fileName = file.name // store the file name for display
+      updated._fileName = file.name
       updateActivity(activityIndex, updated)
-      
-      console.log('✅ Activity updated with audio_url:', updated.audio_url)
     } catch (err) {
-      console.error('❌ Upload failed:', err)
       setError('Failed to upload activity audio: ' + err.message)
-      // Remove uploading state
       const failedActivity = { ...activities[activityIndex] }
       failedActivity._uploading = false
       updateActivity(activityIndex, failedActivity)
@@ -864,7 +828,6 @@ export default function LessonBuilder() {
     setSections(newSections)
   }
 
-  // ---------- EXPORT ----------
   function handleExport() {
     const data = {
       version: '1.0',
@@ -890,7 +853,7 @@ export default function LessonBuilder() {
     URL.revokeObjectURL(url)
   }
 
-  // ---------- IMPORT ----------
+  // ---------- SIMPLIFIED IMPORT ----------
   const fileInputRef = useRef(null)
 
   function handleImportClick() {
@@ -906,10 +869,6 @@ export default function LessonBuilder() {
         const data = JSON.parse(event.target.result)
         if (!data.lesson) throw new Error('Invalid lesson file: missing "lesson"')
 
-        // Detect AI format
-        const isAIGenerated = data.activities && data.activities.length > 0 &&
-          (data.activities[0].instruction !== undefined || data.activities[0].content !== undefined)
-
         // Lesson metadata
         setLesson({
           title: data.lesson.title || 'Untitled',
@@ -919,148 +878,135 @@ export default function LessonBuilder() {
           images: data.lesson.images || []
         })
 
-        // Sections
+        // ----- Extract sections with their activities -----
+        const importedSections = data.sections || []
         let newSections = []
-        let sectionIdMap = {}
-        if (isAIGenerated && data.sections) {
-          newSections = data.sections.map((s, idx) => ({
-            id: `temp-${Date.now()}-${idx}-${Math.random()}`,
-            title: s.title || '',
-            intro_text_en: s.description || s.intro_text || '',
-            intro_text_ja: s.intro_text_ja || s.description_ja || ''
-          }))
-          data.sections.forEach((s, idx) => {
-            sectionIdMap[idx] = newSections[idx].id
-          })
-        } else {
-          newSections = (data.sections || []).map((s, i) => ({
-            id: `temp-${Date.now()}-${i}-${Math.random()}`,
-            title: s.title || '',
-            intro_text_en: s.intro_text_en || s.intro_text || '',
-            intro_text_ja: s.intro_text_ja || ''
-          }))
-          ;(data.sections || []).forEach((s, i) => {
-            const key = s.id || i
-            sectionIdMap[key] = newSections[i].id
-          })
-        }
-        setSections(newSections)
-
-        // Activities
         let newActivities = []
-        if (isAIGenerated && data.activities) {
-          const activityToSectionIdx = {}
-          if (data.sections) {
-            data.sections.forEach((section, idx) => {
-              if (section.activity_ids && Array.isArray(section.activity_ids)) {
-                section.activity_ids.forEach(actId => {
-                  activityToSectionIdx[actId] = idx
-                })
-              }
-            })
+
+        if (importedSections.length === 0 && data.activities && data.activities.length > 0) {
+          // No sections: put all activities in a default section
+          const defaultSection = {
+            id: `temp-${Date.now()}-0-${Math.random()}`,
+            title: 'Activities',
+            intro_text_en: '',
+            intro_text_ja: ''
           }
-
-          data.activities.forEach((act, idx) => {
-            let internalType = act.type
-            if (act.type === 'open_question') internalType = 'short_answer'
-            else if (act.type === 'writing_prompt') internalType = 'short_answer'
-            else if (act.type === 'match') internalType = 'vocabulary_matching'
-            else if (act.type === 'multiple_choice') internalType = 'multiple_choice'
-            else if (act.type === 'gap_fill') internalType = 'gap_fill'
-            else internalType = 'short_answer'
-
-            let prompt_en = act.instruction || ''
-            if (act.content) prompt_en = prompt_en ? `${prompt_en}\n\n${act.content}` : act.content
-
-            let config = {}
-            switch (internalType) {
-              case 'multiple_choice': {
-                const options = act.options || []
-                let correctIndex = -1
-                if (act.correct_answer !== undefined) {
-                  if (!isNaN(act.correct_answer)) {
-                    correctIndex = parseInt(act.correct_answer, 10)
-                  } else if (typeof act.correct_answer === 'string' && act.correct_answer.length === 1) {
-                    const letter = act.correct_answer.toUpperCase()
-                    const idx = letter.charCodeAt(0) - 65
-                    if (idx >= 0 && idx < options.length) correctIndex = idx
-                  } else {
-                    const exactMatch = options.findIndex(opt => opt.trim() === act.correct_answer.trim())
-                    if (exactMatch !== -1) correctIndex = exactMatch
-                  }
-                }
-                config = { options_en: options, options_ja: [], correctIndex }
-                break
-              }
-              case 'gap_fill': {
-                const gaps = act.gaps || []
-                let text_en = gaps.map(g => g.sentence || '').join(' ')
-                const answers = gaps.map(g => g.answer || '').filter(Boolean)
-                config = { text_en, text_ja: '', answers }
-                break
-              }
-              case 'vocabulary_matching': {
-                const matches = act.matches || act.pairs || []
-                const pairs = matches.map(m => ({
-                  term: m.word || m.term || '',
-                  definition: m.definition || ''
-                }))
-                config = { pairs }
-                break
-              }
-              case 'short_answer':
-              default: {
-                const suggestedAnswer = act.expected_answer || act.suggested_answer || ''
-                config = { suggestedAnswer }
-                break
-              }
-            }
-
-            let section_id = null
-            if (act.id && activityToSectionIdx[act.id] !== undefined) {
-              const secIdx = activityToSectionIdx[act.id]
-              section_id = sectionIdMap[secIdx] || null
-            } else if (act.section_id !== undefined) {
-              const oldId = act.section_id
-              section_id = sectionIdMap[oldId] || null
-            } else {
-              if (newSections.length > 0) section_id = newSections[0].id
-            }
-
-            newActivities.push({
-              id: `temp-${Date.now()}-${idx}-${Math.random()}`,
-              type: internalType,
-              prompt_en: prompt_en,
-              prompt_ja: '',
-              config: config,
-              points: act.points ?? 1,
-              section_id: section_id,
-              audio_url: act.audio_url || null
-            })
-          })
-        } else {
-          const oldToNew = {}
-          ;(data.sections || []).forEach((old, i) => {
-            const key = old.id || i
-            oldToNew[key] = newSections[i].id
-          })
-
-          newActivities = (data.activities || []).map((a, i) => {
+          newSections = [defaultSection]
+          data.activities.forEach((a, i) => {
             const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
             const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
             const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
-            return {
+            newActivities.push({
               id: `temp-${Date.now()}-${i}-${Math.random()}`,
               type: type,
               prompt_en: a.prompt_en || a.prompt || '',
               prompt_ja: a.prompt_ja || '',
               config: config,
               points: a.points ?? 1,
-              section_id: a.section_id ? oldToNew[a.section_id] || null : null,
+              section_id: defaultSection.id,
               audio_url: a.audio_url || null
-            }
+            })
           })
+        } else {
+          // Create a section for each imported section and copy its activities
+          importedSections.forEach((s, idx) => {
+            const secId = `temp-${Date.now()}-${idx}-${Math.random()}`
+            newSections.push({
+              id: secId,
+              title: s.title || '',
+              intro_text_en: s.intro_text_en || s.intro_text || '',
+              intro_text_ja: s.intro_text_ja || ''
+            })
+
+            // Activities belonging to this section (from the JSON's 'activities' array)
+            // We need to find activities that have a section_id matching this section's old ID
+            // or we can use the fact that the JSON's sections array may contain an 'activities' property
+            let sectionActivities = []
+            if (s.activities && Array.isArray(s.activities)) {
+              sectionActivities = s.activities
+            } else {
+              // If the JSON only has a top-level 'activities' array, filter by section_id
+              const oldSectionId = s.id || idx
+              sectionActivities = (data.activities || []).filter(a => {
+                // Try to match by old section_id
+                if (a.section_id !== undefined && a.section_id !== null) {
+                  if (a.section_id === oldSectionId) return true
+                  // If oldSectionId is a number and a.section_id is also a number, compare
+                  if (!isNaN(oldSectionId) && !isNaN(a.section_id) && parseInt(a.section_id, 10) === parseInt(oldSectionId, 10)) {
+                    return true
+                  }
+                }
+                return false
+              })
+            }
+
+            sectionActivities.forEach((a, i) => {
+              const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
+              const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
+              const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
+              // Ensure config has bilingual fields if needed
+              if (type === 'multiple_choice' && !config.options_en && config.options) {
+                config.options_en = config.options
+                config.options_ja = config.options
+              }
+              if (type === 'gap_fill' && !config.text_en && config.text) {
+                config.text_en = config.text
+                config.text_ja = ''
+              }
+              if (type === 'gap_fill_dropdown' && !config.text_en && config.text) {
+                config.text_en = config.text
+                config.text_ja = ''
+              }
+              newActivities.push({
+                id: `temp-${Date.now()}-${idx}-${i}-${Math.random()}`,
+                type: type,
+                prompt_en: a.prompt_en || a.prompt || '',
+                prompt_ja: a.prompt_ja || '',
+                config: config,
+                points: a.points ?? 1,
+                section_id: secId, // assign to this new section
+                audio_url: a.audio_url || null
+              })
+            })
+          })
+
+          // If there are activities that were not assigned to any section (e.g., because they had no section_id),
+          // put them in the first section
+          const assignedActivityIds = new Set(newActivities.map(a => a.id))
+          const unassigned = (data.activities || []).filter(a => !assignedActivityIds.has(`temp-${a.id}`))
+          if (unassigned.length > 0 && newSections.length > 0) {
+            const firstSectionId = newSections[0].id
+            unassigned.forEach((a, i) => {
+              const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
+              const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
+              const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
+              if (type === 'multiple_choice' && !config.options_en && config.options) {
+                config.options_en = config.options
+                config.options_ja = config.options
+              }
+              if (type === 'gap_fill' && !config.text_en && config.text) {
+                config.text_en = config.text
+                config.text_ja = ''
+              }
+              if (type === 'gap_fill_dropdown' && !config.text_en && config.text) {
+                config.text_en = config.text
+                config.text_ja = ''
+              }
+              newActivities.push({
+                id: `temp-${Date.now()}-unassigned-${i}-${Math.random()}`,
+                type: type,
+                prompt_en: a.prompt_en || a.prompt || '',
+                prompt_ja: a.prompt_ja || '',
+                config: config,
+                points: a.points ?? 1,
+                section_id: firstSectionId,
+                audio_url: a.audio_url || null
+              })
+            })
+          }
         }
+
+        setSections(newSections)
         setActivities(newActivities)
 
         // Vocabulary
@@ -1086,7 +1032,6 @@ export default function LessonBuilder() {
     e.target.value = ''
   }
 
-  // ---------- PREVIEW ----------
   function handlePreview() {
     if (!lesson.share_slug) {
       alert('Please save the lesson first to generate a preview link.')
@@ -1095,7 +1040,7 @@ export default function LessonBuilder() {
     window.open(`/lesson/${lesson.share_slug}?draft=true`, '_blank')
   }
 
-  // ---------- RENDER ----------
+  // Render (unchanged)
   if (error) {
     return (
       <div className="min-h-screen p-6">
@@ -1183,7 +1128,7 @@ export default function LessonBuilder() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {/* -------- Lesson Metadata -------- */}
+        {/* Lesson Metadata */}
         <section className="card p-6 space-y-4">
           <h2 className="text-lg font-display">Lesson Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1279,7 +1224,7 @@ export default function LessonBuilder() {
           </div>
         </section>
 
-        {/* -------- Sections -------- */}
+        {/* Sections */}
         <section className="card p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-display">Sections (Pages)</h2>
@@ -1359,7 +1304,7 @@ export default function LessonBuilder() {
           </div>
         </section>
 
-        {/* -------- Activities -------- */}
+        {/* Activities */}
         <section className="card p-6 space-y-4" ref={activitiesContainerRef}>
           <div className="sticky top-16 z-10 bg-white -mx-6 px-6 py-3 border-b border-gray-200 shadow-sm flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-3">
@@ -1396,7 +1341,6 @@ export default function LessonBuilder() {
                   delete inputRefs.current[act.id]
                 }
               }
-
               const showActivityAudio = act.type === 'listening' || act.type === 'dictation'
               const hasAudio = act.audio_url || act.config?.audio_url
 
@@ -1444,7 +1388,7 @@ export default function LessonBuilder() {
                                 if (file) handleActivityAudioUpload(idx, file)
                                 e.target.value = ''
                               }}
-                              key={act.id} // force re-render when activity changes
+                              key={act.id}
                             />
                             {act._uploading ? (
                               <span className="text-xs text-blue-500">⏳ Uploading...</span>
@@ -1504,7 +1448,7 @@ export default function LessonBuilder() {
           </div>
         </section>
 
-        {/* -------- Vocabulary -------- */}
+        {/* Vocabulary */}
         <section className="card p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-display">Vocabulary Support</h2>
@@ -1546,7 +1490,7 @@ export default function LessonBuilder() {
           </div>
         </section>
 
-        {/* -------- Bottom Navigation -------- */}
+        {/* Bottom Navigation */}
         <div className="flex justify-between items-center border-t border-gray-200 pt-6">
           <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">
             ← Back to Dashboard

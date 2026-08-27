@@ -1,5 +1,5 @@
 // src/pages/Login.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,6 +10,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Auto‑login if admin credentials are present
+  useEffect(() => {
+    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+    const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
+    if (adminEmail && adminPass) {
+      setEmail(adminEmail);
+      setPassword(adminPass);
+      // Optionally auto‑submit after a short delay
+      // (Uncomment if you want instant login without clicking)
+      // setTimeout(() => {
+      //   document.getElementById('admin-login-btn')?.click();
+      // }, 500);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,11 +91,32 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
+              id="admin-login-btn"
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
               {loading ? 'Logging in...' : 'Log in'}
             </button>
           </div>
+
+          {/* Auto‑login button (visible only when admin env vars are set) */}
+          {import.meta.env.VITE_ADMIN_EMAIL && import.meta.env.VITE_ADMIN_PASSWORD && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail(import.meta.env.VITE_ADMIN_EMAIL);
+                  setPassword(import.meta.env.VITE_ADMIN_PASSWORD);
+                  // Auto‑submit
+                  setTimeout(() => {
+                    document.getElementById('admin-login-btn')?.click();
+                  }, 100);
+                }}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                🔑 Auto‑Login as Admin (one click)
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

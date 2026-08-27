@@ -13,13 +13,23 @@ function assertNoError(error, context) {
   }
 }
 
-// ---------- RLS session variable for student updates ----------
+// ---------- RLS session variable for student operations ----------
 export async function setStudentName(name) {
-  if (!name) return;
-  await supabase.rpc('set_config', {
-    parameter: 'app.current_student_name',
-    value: name,
-  });
+  if (!name) {
+    console.warn('⚠️ setStudentName called with empty name');
+    return;
+  }
+  console.log('🔐 Setting session variable app.current_student_name =', name);
+  try {
+    const result = await supabase.rpc('set_config', {
+      parameter: 'app.current_student_name',
+      value: name,
+    });
+    console.log('✅ set_config result:', result);
+  } catch (err) {
+    console.error('❌ set_config failed:', err);
+    throw err;
+  }
 }
 
 // ---------- lessons ----------
@@ -497,12 +507,11 @@ export async function deleteSubmissions(submissionIds) {
   return true
 }
 
-// ---------- REVISED: saveSubmission with session variable ----------
+// ---------- saveSubmission with session variable and maybeSingle ----------
 export async function saveSubmission(submissionId, updates, studentIdentifier) {
-  // If submissionId is provided, this is an UPDATE
   if (submissionId) {
-    // Set the session variable so RLS allows the update
     if (studentIdentifier) {
+      // Set the session variable – this will log success/failure
       await setStudentName(studentIdentifier);
     } else {
       console.warn('⚠️ saveSubmission update without studentIdentifier - RLS might fail.');
@@ -512,14 +521,18 @@ export async function saveSubmission(submissionId, updates, studentIdentifier) {
       .update(updates)
       .eq('id', submissionId)
       .select()
-      .single();
+      .maybeSingle();
+
     if (error) {
       console.error('❌ saveSubmission update error:', error);
       throw new Error(`Failed to update submission: ${error.message}`);
     }
+    if (!data) {
+      console.error('❌ No row updated. Submission ID:', submissionId, 'Student:', studentIdentifier);
+      throw new Error('Submission not found or update not allowed. Make sure the student name matches.');
+    }
     return data;
   } else {
-    // INSERT (submissionId is null or undefined)
     const { data, error } = await supabase
       .from('submissions')
       .insert(updates)
@@ -533,7 +546,7 @@ export async function saveSubmission(submissionId, updates, studentIdentifier) {
   }
 }
 
-// ---------- getSubmission ----------
+// ---------- getSubmission (with session variable for SELECT) ----------
 export async function getSubmission(slug, studentName) {
   try {
     const lesson = await getLessonBySlug(slug)
@@ -541,6 +554,9 @@ export async function getSubmission(slug, studentName) {
 
     const normalizedName = studentName.trim()
     console.log(`🔍 Looking for submission with lesson_id=${lesson.id}, student_identifier='${normalizedName}'`)
+
+    // Set the session variable so RLS allows SELECT
+    await setStudentName(normalizedName);
 
     const { data, error } = await supabase
       .from('submissions')
