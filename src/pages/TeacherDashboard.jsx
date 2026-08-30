@@ -71,7 +71,7 @@ function SortableFolderItem({ folder, count, isSelected, onSelect, onDelete, onR
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center group">
+    <div ref={setNodeRef} style={style} className="flex items-center group py-1">
       {isEditing ? (
         <input
           type="text"
@@ -79,27 +79,29 @@ function SortableFolderItem({ folder, count, isSelected, onSelect, onDelete, onR
           onChange={(e) => setEditName(e.target.value)}
           onBlur={handleRenameSubmit}
           onKeyDown={(e) => e.key === 'Enter' && handleRenameSubmit()}
-          className="flex-1 px-2 py-1 text-xs border border-crest rounded focus:outline-none focus:ring-1 focus:ring-crest"
+          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-crest"
           autoFocus
         />
       ) : (
         <button
           onClick={() => onSelect(folder.id)}
-          className={`flex-1 text-left px-3 py-1.5 rounded-md text-xs transition-colors flex items-center gap-1 ${
+          className={`flex-1 text-left px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
             isSelected
               ? 'bg-crestSoft text-crest font-medium'
-              : 'text-muted hover:bg-paper'
+              : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mr-1 text-rule hover:text-ink">
+          <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600">
             ⋮
           </span>
-          <span onDoubleClick={handleDoubleClick}>📁 {folder.name} ({count})</span>
+          <span className="truncate" onDoubleClick={handleDoubleClick}>
+            📁 {folder.name} <span className="text-xs text-gray-400">({count})</span>
+          </span>
         </button>
       )}
       <button
         onClick={() => onDelete(folder.id)}
-        className="text-muted hover:text-red-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="text-gray-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
         title="Delete folder"
       >
         ×
@@ -329,23 +331,25 @@ export default function TeacherDashboard() {
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <div className="min-h-screen bg-paper">
-        {/* Header – more compact */}
-        <header className="bg-surface border-b border-rule sticky top-0 z-20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
-            <h1 className="text-xl font-display text-ink">📚 SEL Lesson Repository</h1>
-            <Link to="/builder" className="btn-primary text-sm px-4 py-1.5">
+      <div className="min-h-screen bg-gray-50">
+        {/* Header – refined */}
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 className="text-2xl font-display text-gray-800 tracking-tight">
+              📚 SEL Lesson Repository
+            </h1>
+            <Link to="/builder" className="btn-primary px-4 py-2 text-sm font-medium rounded-md shadow-sm hover:shadow transition">
               + New Lesson
             </Link>
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex gap-5">
-            {/* Sidebar – compact */}
-            <aside className="w-48 flex-shrink-0">
-              <div className="bg-surface rounded-lg border border-rule p-3 sticky top-20">
-                <h2 className="text-xs font-medium text-muted uppercase tracking-wider mb-2">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex gap-8">
+            {/* Sidebar – clean, spacious */}
+            <aside className="w-56 flex-shrink-0">
+              <div className="bg-white rounded-lg border border-gray-200 p-4 sticky top-24 shadow-sm">
+                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                   Folders
                 </h2>
 
@@ -356,24 +360,24 @@ export default function TeacherDashboard() {
                   <nav className="space-y-0.5">
                     <button
                       onClick={() => setSelectedFolderId(null)}
-                      className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors ${
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                         selectedFolderId === null
                           ? 'bg-crestSoft text-crest font-medium'
-                          : 'text-muted hover:bg-paper'
+                          : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      📂 All ({lessons.length})
+                      📂 All <span className="text-xs text-gray-400">({lessons.length})</span>
                     </button>
 
                     <div
-                      className={`w-full text-left px-2 py-1.5 rounded-md text-xs transition-colors cursor-pointer ${
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors cursor-pointer ${
                         selectedFolderId === 'uncategorized'
                           ? 'bg-crestSoft text-crest font-medium'
-                          : 'text-muted hover:bg-paper'
+                          : 'text-gray-600 hover:bg-gray-50'
                       }`}
                       onClick={() => setSelectedFolderId('uncategorized')}
                     >
-                      📄 Uncategorized ({lessons.filter(l => l.folder_id === null).length})
+                      📄 Uncategorized <span className="text-xs text-gray-400">({lessons.filter(l => l.folder_id === null).length})</span>
                     </div>
 
                     {folders.map(folder => {
@@ -393,20 +397,20 @@ export default function TeacherDashboard() {
                   </nav>
                 </SortableContext>
 
-                <form onSubmit={handleCreateFolder} className="mt-3 pt-3 border-t border-rule">
-                  <div className="flex gap-1">
+                <form onSubmit={handleCreateFolder} className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex gap-2">
                     <input
                       type="text"
                       placeholder="New folder..."
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}
-                      className="flex-1 px-2 py-1 border border-rule rounded text-xs focus:outline-none focus:ring-1 focus:ring-crest"
+                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-crest"
                       disabled={isCreatingFolder}
                     />
                     <button
                       type="submit"
                       disabled={isCreatingFolder || !newFolderName.trim()}
-                      className="px-2.5 py-1 bg-crest text-paper text-xs rounded hover:bg-crest/80 disabled:opacity-50"
+                      className="px-3 py-1.5 bg-crest text-white text-sm rounded-md hover:bg-crest hover:shadow transition disabled:opacity-50"
                     >
                       +
                     </button>
@@ -415,78 +419,77 @@ export default function TeacherDashboard() {
               </div>
             </aside>
 
-            {/* Main content – compact cards */}
+            {/* Main content – spacious cards */}
             <main className="flex-1 min-w-0">
               {loading ? (
-                <div className="text-center py-8 text-muted text-sm">Loading lessons...</div>
+                <div className="text-center py-12 text-gray-500">Loading lessons...</div>
               ) : filteredLessons.length === 0 ? (
-                <div className="bg-surface rounded-lg border border-rule p-8 text-center">
-                  <p className="text-muted text-sm">No lessons in this folder.</p>
-                  <Link to="/builder" className="btn-primary mt-3 inline-block text-sm">
+                <div className="bg-white rounded-lg border border-gray-200 p-12 text-center shadow-sm">
+                  <p className="text-gray-500 mb-4">No lessons in this folder.</p>
+                  <Link to="/builder" className="btn-primary inline-block">
                     Create your first lesson
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {/* Selection bar – compact */}
-                  {filteredLessons.length > 0 && (
-                    <div className="flex items-center gap-2 px-1 py-1.5 bg-surface rounded border border-rule">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={toggleSelectAll}
-                        className="w-3.5 h-3.5 text-crest rounded border-rule focus:ring-crest"
-                      />
-                      <span className="text-xs text-muted">
-                        {selectedLessonIds.length} selected
-                      </span>
-                      {selectedLessonIds.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <select
-                            onChange={(e) => {
-                              const val = e.target.value
-                              if (val) handleBulkMove(val === 'null' ? null : val)
-                              e.target.value = ''
-                            }}
-                            className="text-xs border border-rule rounded px-2 py-0.5 bg-surface focus:outline-none focus:ring-1 focus:ring-crest"
-                          >
-                            <option value="">Move to...</option>
-                            <option value="null">📄 Uncategorized</option>
-                            {folders.map(f => (
-                              <option key={f.id} value={f.id}>📁 {f.name}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => setSelectedLessonIds([])}
-                            className="text-xs text-muted hover:text-ink"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                <div className="space-y-4">
+                  {/* Selection bar – refined */}
+                  <div className="flex items-center gap-3 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 text-crest rounded border-gray-300 focus:ring-crest"
+                    />
+                    <span className="text-sm text-gray-600">
+                      {selectedLessonIds.length} selected
+                    </span>
+                    {selectedLessonIds.length > 0 && (
+                      <>
+                        <div className="h-6 w-px bg-gray-300" />
+                        <select
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (val) handleBulkMove(val === 'null' ? null : val)
+                            e.target.value = ''
+                          }}
+                          className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-crest"
+                        >
+                          <option value="">Move to...</option>
+                          <option value="null">📄 Uncategorized</option>
+                          {folders.map(f => (
+                            <option key={f.id} value={f.id}>📁 {f.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => setSelectedLessonIds([])}
+                          className="text-sm text-gray-400 hover:text-gray-600"
+                        >
+                          Clear
+                        </button>
+                      </>
+                    )}
+                  </div>
 
-                  {/* Lesson cards – compact grid */}
-                  <div className="grid grid-cols-1 gap-2">
+                  {/* Lesson cards – spacious */}
+                  <div className="space-y-3">
                     {filteredLessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className={`bg-surface rounded-lg border p-3 hover:shadow-sm transition-shadow ${
-                          selectedLessonIds.includes(lesson.id) ? 'border-crest ring-1 ring-crest' : 'border-rule'
+                        className={`bg-white rounded-lg border p-5 shadow-sm hover:shadow-md transition-shadow ${
+                          selectedLessonIds.includes(lesson.id) ? 'border-crest ring-1 ring-crest' : 'border-gray-200'
                         }`}
                         data-lesson-id={lesson.id}
                       >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
                             <input
                               type="checkbox"
                               checked={selectedLessonIds.includes(lesson.id)}
                               onChange={() => toggleSelectLesson(lesson.id)}
-                              className="mt-1 w-3.5 h-3.5 text-crest rounded border-rule focus:ring-crest"
+                              className="mt-1 w-4 h-4 text-crest rounded border-gray-300 focus:ring-crest"
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-3 flex-wrap">
                                 {editingLessonId === lesson.id ? (
                                   <input
                                     type="text"
@@ -509,12 +512,12 @@ export default function TeacherDashboard() {
                                       }
                                       if (e.key === 'Escape') setEditingLessonId(null)
                                     }}
-                                    className="text-sm font-medium text-ink border border-crest rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-crest"
+                                    className="text-base font-medium text-gray-800 border border-crest rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-crest"
                                     autoFocus
                                   />
                                 ) : (
                                   <h3
-                                    className="text-sm font-medium text-ink truncate cursor-pointer hover:text-crest"
+                                    className="text-base font-medium text-gray-800 truncate cursor-pointer hover:text-crest"
                                     onDoubleClick={() => {
                                       setEditingLessonId(lesson.id)
                                       setEditLessonTitle(lesson.title)
@@ -524,34 +527,34 @@ export default function TeacherDashboard() {
                                     {lesson.title}
                                   </h3>
                                 )}
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                   lesson.status === 'published'
-                                    ? 'bg-forestSoft text-forest'
-                                    : 'bg-amberSoft text-amber'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
                                 }`}>
                                   {lesson.status}
                                 </span>
-                                <span className="text-[10px] text-muted font-mono">
+                                <span className="text-xs text-gray-400 font-mono">
                                   {lesson.level}
                                 </span>
                               </div>
-                              <div className="flex flex-wrap gap-3 mt-0.5 text-[10px] text-muted">
+                              <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-500">
                                 <span>📝 {lesson.completedCount || 0} completions</span>
                                 {lesson.avgPercent !== null && (
                                   <span>📊 Avg: {lesson.avgPercent}%</span>
                                 )}
-                                <span className="text-rule">
-                                  {new Date(lesson.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                <span className="text-gray-400">
+                                  {new Date(lesson.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                 </span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 flex-wrap">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <select
                               value={lesson.folder_id || ''}
                               onChange={(e) => handleMoveLesson(lesson.id, e.target.value || null)}
-                              className="text-[10px] border border-rule rounded px-1.5 py-0.5 bg-surface focus:outline-none focus:ring-1 focus:ring-crest"
+                              className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-crest"
                             >
                               <option value="">Move</option>
                               <option value="">📄 Uncategorized</option>
@@ -562,7 +565,7 @@ export default function TeacherDashboard() {
 
                             <button
                               onClick={() => handleCopyLink(lesson.share_slug)}
-                              className="text-[10px] text-crest hover:underline px-1.5 py-0.5 whitespace-nowrap"
+                              className="text-sm text-crest hover:underline px-2 py-1 whitespace-nowrap"
                               title="Copy student URL"
                             >
                               📋 Copy
@@ -570,7 +573,7 @@ export default function TeacherDashboard() {
 
                             <Link
                               to={`/builder/${lesson.id}`}
-                              className="text-[10px] text-crest hover:underline px-1.5 py-0.5 whitespace-nowrap font-medium"
+                              className="text-sm text-crest hover:underline px-2 py-1 whitespace-nowrap font-medium"
                             >
                               ✏️ Edit
                             </Link>
@@ -579,21 +582,21 @@ export default function TeacherDashboard() {
                               to={`/results/${lesson.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[10px] text-muted hover:underline px-1.5 py-0.5 whitespace-nowrap"
+                              className="text-sm text-gray-500 hover:underline px-2 py-1 whitespace-nowrap"
                             >
                               Results
                             </Link>
 
                             <button
                               onClick={() => handleDuplicate(lesson.id)}
-                              className="text-[10px] text-muted hover:text-ink px-1.5 py-0.5 whitespace-nowrap"
+                              className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1 whitespace-nowrap"
                             >
                               Copy
                             </button>
 
                             <button
                               onClick={() => handleDeleteLesson(lesson.id, lesson.title)}
-                              className="text-[10px] text-red-600 hover:text-red-800 px-1.5 py-0.5 whitespace-nowrap font-medium"
+                              className="text-sm text-red-500 hover:text-red-700 px-2 py-1 whitespace-nowrap font-medium"
                             >
                               🗑️
                             </button>
@@ -601,14 +604,14 @@ export default function TeacherDashboard() {
                             {lesson.status === 'draft' ? (
                               <button
                                 onClick={() => handlePublish(lesson.id)}
-                                className="text-[10px] bg-forest text-paper px-2 py-0.5 rounded hover:bg-forest/80 whitespace-nowrap"
+                                className="text-sm bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition whitespace-nowrap"
                               >
                                 Publish
                               </button>
                             ) : (
                               <button
                                 onClick={() => handleUnpublish(lesson.id)}
-                                className="text-[10px] bg-rule text-ink px-2 py-0.5 rounded hover:bg-rule/80 whitespace-nowrap"
+                                className="text-sm bg-gray-200 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-300 transition whitespace-nowrap"
                               >
                                 Unpublish
                               </button>
@@ -626,18 +629,18 @@ export default function TeacherDashboard() {
 
         {/* Bottom selection bar – floating */}
         {selectedLessonIds.length > 0 && (
-          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-surface rounded-lg shadow-lg border border-rule px-4 py-2 flex items-center gap-3 z-30">
-            <span className="text-xs font-medium text-ink">
+          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 px-5 py-3 flex items-center gap-4 z-30">
+            <span className="text-sm font-medium text-gray-700">
               {selectedLessonIds.length} lesson{selectedLessonIds.length > 1 ? 's' : ''} selected
             </span>
-            <div className="h-4 w-px bg-rule" />
+            <div className="h-6 w-px bg-gray-300" />
             <select
               onChange={(e) => {
                 const val = e.target.value
                 if (val) handleBulkMove(val === 'null' ? null : val)
                 e.target.value = ''
               }}
-              className="text-xs border border-rule rounded px-2 py-0.5 bg-surface focus:outline-none focus:ring-1 focus:ring-crest"
+              className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-crest"
             >
               <option value="">Move to folder...</option>
               <option value="null">📄 Uncategorized</option>
@@ -647,7 +650,7 @@ export default function TeacherDashboard() {
             </select>
             <button
               onClick={() => setSelectedLessonIds([])}
-              className="text-xs text-muted hover:text-ink"
+              className="text-sm text-gray-400 hover:text-gray-600"
             >
               × Close
             </button>

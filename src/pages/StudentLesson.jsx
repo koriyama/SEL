@@ -9,7 +9,8 @@ import {
   listActivities,
   listVocabulary, 
   saveSubmission, 
-  getSubmission 
+  getSubmission,
+  setStudentName
 } from '../lib/api';
 import { 
   gradeGapFill, 
@@ -66,15 +67,6 @@ const translations = {
     ],
     drawerExample: '👇 Tap the bar to show/hide',
     activityTypes: '✅ Activity types',
-    activityList: [
-      '<span class="font-medium">Gap Fill</span> – type the missing word.',
-      '<span class="font-medium">Multiple Choice</span> – select the correct option.',
-      '<span class="font-medium">Sentence Jumble</span> – tap tiles to build the sentence.',
-      '<span class="font-medium">Vocabulary Matching</span> – match terms to definitions.',
-      '<span class="font-medium">Listening</span> – listen to audio and answer questions.',
-      '<span class="font-medium">Dictation</span> – listen and type what you hear.',
-      '<span class="font-medium">Short Answer / Reasoning</span> – write your own response.'
-    ],
     startLessonButton: '🚀 Start Lesson',
     wellDone: '🎉 Well done! 🎉',
     thankYou: 'Thank you for your hard work! Your answers have been submitted.',
@@ -115,15 +107,6 @@ const translations = {
     ],
     drawerExample: '👇 バーをタップして表示/非表示',
     activityTypes: '✅ アクティビティの種類',
-    activityList: [
-      '<span class="font-medium">穴埋め</span> – 欠けている単語を入力します。',
-      '<span class="font-medium">選択問題</span> – 正しい選択肢を選びます。',
-      '<span class="font-medium">並べ替え</span> – 単語をタップして文を完成させます。',
-      '<span class="font-medium">語彙マッチング</span> – 単語と定義をマッチさせます。',
-      '<span class="font-medium">リスニング</span> – 音声を聞いて質問に答えます。',
-      '<span class="font-medium">ディクテーション</span> – 聞いて、聞こえた通りに入力します。',
-      '<span class="font-medium">記述/論述</span> – 自分の考えを書きます。'
-    ],
     startLessonButton: '🚀 レッスンを始める',
     wellDone: '🎉 お疲れ様でした！ 🎉',
     thankYou: 'ご協力ありがとうございました。回答が送信されました。',
@@ -388,7 +371,7 @@ export default function StudentLesson() {
     };
   }, [isSubmitted]);
 
-  // ---- UPDATED handleNameSubmit with retry after duplicate ----
+  // ---- UPDATED handleNameSubmit with session variable before insert ----
   const handleNameSubmit = async (e) => {
     e.preventDefault();
     const trimmedName = studentName.trim().toLowerCase();
@@ -409,6 +392,9 @@ export default function StudentLesson() {
           return;
         }
 
+        // **IMPORTANT: Set session variable before inserting**
+        await setStudentName(trimmedName);
+
         // If none, try to insert a new one
         const { data, error } = await supabase
           .from('submissions')
@@ -426,7 +412,6 @@ export default function StudentLesson() {
           // If duplicate key, fetch the existing one with a retry
           if (error.code === '23505') {
             console.log('⚠️ Duplicate key, fetching existing submission with retry...');
-            // Wait a short moment before retrying
             await new Promise(resolve => setTimeout(resolve, 100));
             existing = await getSubmission(slug, trimmedName);
             if (existing) {
@@ -436,7 +421,6 @@ export default function StudentLesson() {
               setAnswers(existing.answers || {});
               return;
             } else {
-              // Still not found – fallback to throw
               throw new Error('Existing submission exists but cannot be retrieved. Please try again.');
             }
           }
@@ -468,7 +452,7 @@ export default function StudentLesson() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle final submission
+  // Handle final submission - IMPROVED ERROR HANDLING
   const handleFinalSubmit = async () => {
     if (isPreview || isSubmitted) {
       console.warn('⚠️ Cannot submit: preview or already submitted');
@@ -524,6 +508,11 @@ export default function StudentLesson() {
       const finalScore = maxAutoScore > 0 ? Math.round((totalScore / maxAutoScore) * 100) : 0;
       console.log(`📊 Final score: ${finalScore}% (${totalScore}/${maxAutoScore})`);
 
+      const nameToUse = studentName || localStorage.getItem(`smiley_student_name_${slug}`);
+      if (!nameToUse) {
+        throw new Error('Student name not found. Please refresh and try again.');
+      }
+
       await saveSubmission(submissionId, {
         current_page: currentPage,
         answers: gradedAnswers,
@@ -531,7 +520,7 @@ export default function StudentLesson() {
         score: finalScore,
         max_auto_score: maxAutoScore,
         status: 'completed'
-      }, studentName);
+      }, nameToUse);
 
       setAnswers(gradedAnswers);
       setIsSubmitted(true);
@@ -539,7 +528,7 @@ export default function StudentLesson() {
       console.log('✅ Submission completed successfully');
     } catch (err) {
       console.error('❌ Final submission failed:', err);
-      alert('Failed to submit. Please try again.');
+      alert(`Failed to submit: ${err.message || 'Unknown error'}\n\nPlease check your internet connection and try again. If the problem persists, contact support.`);
     }
   };
 
@@ -571,14 +560,12 @@ export default function StudentLesson() {
 
     const questionNumber = index + 1;
     
-    // Get the prompt in the selected language
     let prompt = '';
     if (language === 'en') {
       prompt = activity.prompt_en || activity.prompt || '';
     } else {
       prompt = activity.prompt_ja || '';
     }
-    // If no prompt in selected language, use English as fallback
     if (!prompt) prompt = activity.prompt_en || activity.prompt || '';
     
     const displayPrompt = prompt ? `Q${questionNumber}. ${prompt}` : `Q${questionNumber}`;
@@ -594,7 +581,6 @@ export default function StudentLesson() {
       language: language,
     };
 
-    // For multiple-choice, override config with language-specific options
     if (activity.type === 'multiple_choice') {
       const config = activity.config || {};
       const options = language === 'en' ? config.options_en : config.options_ja;
@@ -610,7 +596,6 @@ export default function StudentLesson() {
       return <MultipleChoicePlayer {...commonProps} activity={activityWithLanguage} />;
     }
 
-    // For gap_fill and gap_fill_dropdown – pass language prop (already in commonProps)
     if (activity.type === 'gap_fill') {
       return <GapFillPlayer {...commonProps} />;
     }
@@ -618,7 +603,6 @@ export default function StudentLesson() {
       return <GapFillDropdownPlayer {...commonProps} />;
     }
 
-    // For other activity types
     switch (activity.type) {
       case 'short_answer':
         return <ShortAnswerPlayer {...commonProps} />;
@@ -780,11 +764,60 @@ export default function StudentLesson() {
             </div>
 
             <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-              <h3 className="font-semibold text-purple-800 dark:text-purple-300">{t.activityTypes}</h3>
+              <h3 className="font-semibold text-purple-800 dark:text-purple-300">
+                {t.activityTypes}
+              </h3>
               <ul className="text-sm list-disc list-inside mt-1 space-y-1">
-                {t.activityList.map((item, idx) => (
-                  <li key={idx} dangerouslySetInnerHTML={{ __html: item }} />
-                ))}
+                {(() => {
+                  const typeCounts = {};
+                  sections.forEach(section => {
+                    (section.activities || []).forEach(act => {
+                      const type = act.type;
+                      typeCounts[type] = (typeCounts[type] || 0) + 1;
+                    });
+                  });
+
+                  const typeLabels = {
+                    en: {
+                      gap_fill: 'Gap Fill',
+                      multiple_choice: 'Multiple Choice',
+                      short_answer: 'Short Answer',
+                      reasoning: 'Reasoning',
+                      gap_fill_dropdown: 'Gap Fill (Dropdown)',
+                      sentence_jumble: 'Sentence Jumble',
+                      vocabulary_matching: 'Vocabulary Matching',
+                      listening: 'Listening',
+                      dictation: 'Dictation',
+                    },
+                    ja: {
+                      gap_fill: '穴埋め',
+                      multiple_choice: '選択問題',
+                      short_answer: '記述問題',
+                      reasoning: '論述問題',
+                      gap_fill_dropdown: '穴埋め（ドロップダウン）',
+                      sentence_jumble: '並べ替え',
+                      vocabulary_matching: '語彙マッチング',
+                      listening: 'リスニング',
+                      dictation: 'ディクテーション',
+                    }
+                  };
+
+                  const items = Object.entries(typeCounts)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([type, count]) => {
+                      const label = typeLabels[language]?.[type] || type;
+                      const countLabel = language === 'ja'
+                        ? `${count} アクティビティ`
+                        : `${count} activity${count > 1 ? 's' : ''}`;
+                      return (
+                        <li key={type}>
+                          <span className="font-medium">{label}</span> – {countLabel}
+                        </li>
+                      );
+                    });
+
+                  return items.length > 0 ? items : <li>{language === 'ja' ? 'アクティビティがありません' : 'No activities'}</li>;
+                })()}
               </ul>
             </div>
           </div>

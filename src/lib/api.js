@@ -13,23 +13,54 @@ function assertNoError(error, context) {
   }
 }
 
-// ---------- RLS session variable for student operations ----------
+// ---------- RLS session variable for student operations (with retry) ----------
 export async function setStudentName(name) {
   if (!name) {
     console.warn('⚠️ setStudentName called with empty name');
     return;
   }
   console.log('🔐 Setting session variable app.current_student_name =', name);
-  try {
-    const result = await supabase.rpc('set_config', {
-      parameter: 'app.current_student_name',
-      value: name,
-    });
-    console.log('✅ set_config result:', result);
-  } catch (err) {
-    console.error('❌ set_config failed:', err);
-    throw err;
+  
+  let attempt = 0;
+  const maxAttempts = 3;
+  let lastError = null;
+  
+  while (attempt < maxAttempts) {
+    try {
+      const result = await supabase.rpc('set_config', {
+        parameter: 'app.current_student_name',
+        value: name,
+      });
+      console.log('✅ set_config result:', result);
+      return;
+    } catch (err) {
+      lastError = err;
+      attempt++;
+      console.warn(`⚠️ setStudentName attempt ${attempt}/${maxAttempts} failed:`, err);
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+      }
+    }
   }
+  console.error('❌ setStudentName failed after all attempts:', lastError);
+  throw new Error(`Failed to set student name: ${lastError.message}`);
+}
+
+// ---------- get next attempt number ----------
+export async function getNextAttemptNumber(lessonId, studentIdentifier) {
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('attempt_number')
+    .eq('lesson_id', lessonId)
+    .eq('student_identifier', studentIdentifier)
+    .order('attempt_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('❌ Error getting attempt number:', error);
+    throw error;
+  }
+  return data ? data.attempt_number + 1 : 1;
 }
 
 // ---------- lessons ----------
@@ -507,32 +538,48 @@ export async function deleteSubmissions(submissionIds) {
   return true
 }
 
-// ---------- saveSubmission with session variable and maybeSingle ----------
+// ---------- saveSubmission with RPC fallback ----------
 export async function saveSubmission(submissionId, updates, studentIdentifier) {
   if (submissionId) {
-    if (studentIdentifier) {
-      // Set the session variable – this will log success/failure
-      await setStudentName(studentIdentifier);
-    } else {
-      console.warn('⚠️ saveSubmission update without studentIdentifier - RLS might fail.');
+    // First, try the regular update (with session variable)
+    try {
+      if (studentIdentifier) {
+        await setStudentName(studentIdentifier);
+      } else {
+        console.warn('⚠️ saveSubmission update without studentIdentifier - RLS might fail.');
+      }
+      const { data, error } = await supabase
+        .from('submissions')
+        .update(updates)
+        .eq('id', submissionId)
+        .select()
+        .maybeSingle();
+      if (error) {
+        console.warn('⚠️ Regular update failed, falling back to RPC:', error);
+        throw error;
+      }
+      if (!data) {
+        throw new Error('No row updated (regular)');
+      }
+      return data;
+    } catch (err) {
+      console.warn('⚠️ Falling back to RPC update_submission due to error:', err.message);
+      const { data, error } = await supabase.rpc('update_submission', {
+        p_id: submissionId,
+        p_updates: updates,
+        p_student_name: studentIdentifier
+      });
+      if (error) {
+        console.error('❌ RPC update failed:', error);
+        throw new Error(`Failed to update submission via RPC: ${error.message}`);
+      }
+      if (!data) {
+        throw new Error('RPC returned no data');
+      }
+      return data;
     }
-    const { data, error } = await supabase
-      .from('submissions')
-      .update(updates)
-      .eq('id', submissionId)
-      .select()
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ saveSubmission update error:', error);
-      throw new Error(`Failed to update submission: ${error.message}`);
-    }
-    if (!data) {
-      console.error('❌ No row updated. Submission ID:', submissionId, 'Student:', studentIdentifier);
-      throw new Error('Submission not found or update not allowed. Make sure the student name matches.');
-    }
-    return data;
   } else {
+    // Insert new submission (no RLS issue)
     const { data, error } = await supabase
       .from('submissions')
       .insert(updates)
@@ -563,7 +610,7 @@ export async function getSubmission(slug, studentName) {
       .select('*')
       .eq('lesson_id', lesson.id)
       .eq('student_identifier', normalizedName)
-      .order('created_at', { ascending: false })
+      .order('attempt_number', { ascending: false })
       .limit(1)
       .maybeSingle()
 
