@@ -46,21 +46,41 @@ export async function setStudentName(name) {
   throw new Error(`Failed to set student name: ${lastError.message}`);
 }
 
-// ---------- get next attempt number ----------
-export async function getNextAttemptNumber(lessonId, studentIdentifier) {
-  const { data, error } = await supabase
-    .from('submissions')
-    .select('attempt_number')
-    .eq('lesson_id', lessonId)
-    .eq('student_identifier', studentIdentifier)
-    .order('attempt_number', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+// ---------- Insert submission via RPC (bypasses RLS) ----------
+export async function insertSubmissionViaRpc(lessonId, studentIdentifier, attemptNumber, currentPage, answers, status) {
+  const { data, error } = await supabase.rpc('insert_submission', {
+    p_lesson_id: lessonId,
+    p_student_identifier: studentIdentifier,
+    p_attempt_number: attemptNumber,
+    p_current_page: currentPage || 0,
+    p_answers: answers || {},
+    p_status: status || 'in_progress'
+  });
   if (error) {
-    console.error('❌ Error getting attempt number:', error);
+    console.error('❌ insert_submission RPC error:', error);
+    const err = new Error(error.message);
+    err.code = error.code;
+    err.details = error.details;
+    err.hint = error.hint;
+    throw err;
+  }
+  if (!data) {
+    throw new Error('insert_submission returned no data');
+  }
+  return data;
+}
+
+// ---------- Get submission by lesson + student (bypasses RLS) ----------
+export async function getSubmissionByLessonStudent(lessonId, studentIdentifier) {
+  const { data, error } = await supabase.rpc('get_submission_by_lesson_student', {
+    p_lesson_id: lessonId,
+    p_student_identifier: studentIdentifier
+  });
+  if (error) {
+    console.error('❌ get_submission_by_lesson_student RPC error:', error);
     throw error;
   }
-  return data ? data.attempt_number + 1 : 1;
+  return data;
 }
 
 // ---------- lessons ----------
@@ -538,6 +558,20 @@ export async function deleteSubmissions(submissionIds) {
   return true
 }
 
+// ---------- getNextAttemptNumber ----------
+export async function getNextAttemptNumber(lessonId, studentIdentifier) {
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('attempt_number')
+    .eq('lesson_id', lessonId)
+    .eq('student_identifier', studentIdentifier)
+    .order('attempt_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? data.attempt_number + 1 : 1;
+}
+
 // ---------- saveSubmission with RPC fallback ----------
 export async function saveSubmission(submissionId, updates, studentIdentifier) {
   if (submissionId) {
@@ -579,7 +613,6 @@ export async function saveSubmission(submissionId, updates, studentIdentifier) {
       return data;
     }
   } else {
-    // Insert new submission (no RLS issue)
     const { data, error } = await supabase
       .from('submissions')
       .insert(updates)
@@ -593,40 +626,17 @@ export async function saveSubmission(submissionId, updates, studentIdentifier) {
   }
 }
 
-// ---------- getSubmission (with session variable for SELECT) ----------
+// ---------- getSubmission ----------
 export async function getSubmission(slug, studentName) {
   try {
-    const lesson = await getLessonBySlug(slug)
-    if (!lesson) return null
-
-    const normalizedName = studentName.trim()
-    console.log(`🔍 Looking for submission with lesson_id=${lesson.id}, student_identifier='${normalizedName}'`)
-
-    // Set the session variable so RLS allows SELECT
-    await setStudentName(normalizedName);
-
-    const { data, error } = await supabase
-      .from('submissions')
-      .select('*')
-      .eq('lesson_id', lesson.id)
-      .eq('student_identifier', normalizedName)
-      .order('attempt_number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (error) {
-      console.error('❌ Error fetching submission:', error)
-      return null
-    }
-
-    if (data) {
-      console.log('✅ Found existing submission:', data.id)
-    } else {
-      console.log('ℹ️ No submission found for this student')
-    }
-    return data
+    const lesson = await getLessonBySlug(slug);
+    if (!lesson) return null;
+    const normalizedName = studentName.trim();
+    // Use RPC to bypass RLS
+    const data = await getSubmissionByLessonStudent(lesson.id, normalizedName);
+    return data;
   } catch (err) {
-    console.error('❌ Exception in getSubmission:', err)
-    return null
+    console.error('❌ Exception in getSubmission:', err);
+    return null;
   }
 }

@@ -11,7 +11,9 @@ import {
   saveSubmission, 
   getSubmission,
   setStudentName,
-  getNextAttemptNumber
+  getNextAttemptNumber,
+  insertSubmissionViaRpc,
+  getSubmissionByLessonStudent
 } from '../lib/api';
 import { 
   gradeGapFill, 
@@ -279,25 +281,19 @@ export default function StudentLesson() {
             setStudentName(storedName);
             setNameSubmitted(true);
             setShowInstructions(true);
-            // Try to fetch existing submission directly using direct query
+            // Use RPC to fetch existing submission
             try {
               await setStudentName(storedName);
-              const { data: existing, error } = await supabase
-                .from('submissions')
-                .select('*')
-                .eq('lesson_id', data.id)
-                .eq('student_identifier', storedName)
-                .order('attempt_number', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              if (existing && existing.status === 'in_progress') {
-                console.log('📋 Found existing in-progress submission:', existing.id);
+              const existing = await getSubmissionByLessonStudent(data.id, storedName);
+              if (existing) {
+                console.log('📋 Found existing submission:', existing.id);
                 setSubmissionId(existing.id);
                 setCurrentPage(existing.current_page || 0);
                 setAnswers(existing.answers || {});
-              } else if (existing && existing.status === 'completed') {
-                console.log('📋 Found completed submission (attempt ' + existing.attempt_number + ')');
-                // We'll handle resuming on name entry – just show instructions
+                if (existing.submitted_at) {
+                  setIsSubmitted(true);
+                  setScore(existing.score);
+                }
               } else {
                 console.log('ℹ️ No existing submission found');
               }
@@ -384,7 +380,7 @@ export default function StudentLesson() {
     };
   }, [isSubmitted]);
 
-  // ---- UPDATED handleNameSubmit with attempt-number logic ----
+  // ---- handleNameSubmit with RPC fetch and retry loop ----
   const handleNameSubmit = async (e) => {
     e.preventDefault();
     const trimmedName = studentName.trim().toLowerCase();
@@ -397,56 +393,58 @@ export default function StudentLesson() {
       try {
         await setStudentName(trimmedName);
 
-        // Check for existing in-progress submission (most recent attempt)
-        const { data: existing, error: fetchError } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('lesson_id', lesson.id)
-          .eq('student_identifier', trimmedName)
-          .order('attempt_number', { ascending: false })
-          .maybeSingle();
+        // Use RPC to fetch existing submission
+        const existing = await getSubmissionByLessonStudent(lesson.id, trimmedName);
 
-        if (existing) {
-          if (existing.status === 'in_progress') {
-            // Resume the most recent in-progress
-            console.log('✅ Resuming in-progress submission:', existing.id);
-            setSubmissionId(existing.id);
-            setCurrentPage(existing.current_page || 0);
-            setAnswers(existing.answers || {});
+        if (existing && existing.status === 'in_progress') {
+          console.log('✅ Resuming in-progress submission:', existing.id);
+          setSubmissionId(existing.id);
+          setCurrentPage(existing.current_page || 0);
+          setAnswers(existing.answers || {});
+          return;
+        }
+
+        if (existing && existing.status === 'completed') {
+          const startNew = window.confirm(
+            'You have already completed this lesson. Would you like to start a new attempt? (Your previous results will be kept.)'
+          );
+          if (!startNew) {
+            setNameSubmitted(false);
+            setShowInstructions(false);
             return;
-          } else if (existing.status === 'completed') {
-            // Ask if they want to start a new attempt
-            const startNew = window.confirm(
-              'You have already completed this lesson. Would you like to start a new attempt? (Your previous results will be kept.)'
-            );
-            if (!startNew) {
-              setNameSubmitted(false);
-              setShowInstructions(false);
-              return;
-            }
-            // They want a new attempt – we'll create a new row below
           }
         }
 
-        // If we get here, either no submission exists, or we're starting a fresh attempt
-        const nextAttempt = await getNextAttemptNumber(lesson.id, trimmedName);
-        const { data, error } = await supabase
-          .from('submissions')
-          .insert({
-            lesson_id: lesson.id,
-            student_identifier: trimmedName,
-            attempt_number: nextAttempt,
-            current_page: 0,
-            answers: {},
-            status: 'in_progress'
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        console.log(`✅ New submission created (attempt ${nextAttempt}):`, data.id);
-        setSubmissionId(data.id);
+        // Start a new attempt – retry with increasing attempt numbers until success
+        let attempt = await getNextAttemptNumber(lesson.id, trimmedName);
+        let inserted = false;
+        let maxRetries = 10;
+        while (!inserted && maxRetries > 0) {
+          try {
+            const data = await insertSubmissionViaRpc(
+              lesson.id,
+              trimmedName,
+              attempt,
+              0,
+              {},
+              'in_progress'
+            );
+            console.log(`✅ New submission created (attempt ${attempt}):`, data.id);
+            setSubmissionId(data.id);
+            inserted = true;
+          } catch (err) {
+            if (err.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
+              attempt++;
+              maxRetries--;
+              console.log(`⚠️ Attempt ${attempt-1} already exists, trying ${attempt}`);
+            } else {
+              throw err;
+            }
+          }
+        }
+        if (!inserted) {
+          throw new Error('Could not create a new submission after multiple attempts.');
+        }
       } catch (err) {
         console.error('❌ Error with submission:', err);
         alert('Could not start or resume lesson. Please try again.\n\nError: ' + err.message);
