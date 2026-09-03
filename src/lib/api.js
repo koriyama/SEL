@@ -46,7 +46,7 @@ export async function setStudentName(name) {
   throw new Error(`Failed to set student name: ${lastError.message}`);
 }
 
-// ---------- Insert submission via RPC (bypasses RLS) ----------
+// ---------- Insert submission via RPC ----------
 export async function insertSubmissionViaRpc(lessonId, studentIdentifier, attemptNumber, currentPage, answers, status) {
   const { data, error } = await supabase.rpc('insert_submission', {
     p_lesson_id: lessonId,
@@ -70,7 +70,7 @@ export async function insertSubmissionViaRpc(lessonId, studentIdentifier, attemp
   return data;
 }
 
-// ---------- Get submission by lesson + student (bypasses RLS) ----------
+// ---------- Get submission by lesson + student ----------
 export async function getSubmissionByLessonStudent(lessonId, studentIdentifier) {
   const { data, error } = await supabase.rpc('get_submission_by_lesson_student', {
     p_lesson_id: lessonId,

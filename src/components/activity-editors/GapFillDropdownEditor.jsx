@@ -90,7 +90,9 @@ export default function GapFillDropdownEditor({ activity, onChange, inputRef }) 
         />
         <p className="text-xs text-muted mt-1">
           Each line corresponds to a blank in order. Separate options with a pipe (<code className="bg-gray-100 px-1">|</code>).
-          The first option in each line will be considered the correct answer.
+          <br />
+          <strong>The bracketed word (e.g., [[evening]]) will be considered the correct answer. </strong>
+          Make sure one of the options exactly matches it (case‑insensitive).
         </p>
       </div>
     </div>

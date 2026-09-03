@@ -228,6 +228,8 @@ export default function StudentLesson() {
   const [score, setScore] = useState(null);
   const [showAnswers, setShowAnswers] = useState(false);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const saveTimer = useRef(null);
   const isSaving = useRef(false);
 
@@ -380,7 +382,7 @@ export default function StudentLesson() {
     };
   }, [isSubmitted]);
 
-  // ---- handleNameSubmit with RPC fetch and retry loop ----
+  // ---- handleNameSubmit ----
   const handleNameSubmit = async (e) => {
     e.preventDefault();
     const trimmedName = studentName.trim().toLowerCase();
@@ -393,7 +395,6 @@ export default function StudentLesson() {
       try {
         await setStudentName(trimmedName);
 
-        // Use RPC to fetch existing submission
         const existing = await getSubmissionByLessonStudent(lesson.id, trimmedName);
 
         if (existing && existing.status === 'in_progress') {
@@ -415,7 +416,6 @@ export default function StudentLesson() {
           }
         }
 
-        // Start a new attempt – retry with increasing attempt numbers until success
         let attempt = await getNextAttemptNumber(lesson.id, trimmedName);
         let inserted = false;
         let maxRetries = 10;
@@ -477,6 +477,8 @@ export default function StudentLesson() {
       alert('No submission found. Please restart the lesson.');
       return;
     }
+
+    setIsSubmitting(true);
 
     try {
       let totalScore = 0;
@@ -544,6 +546,8 @@ export default function StudentLesson() {
     } catch (err) {
       console.error('❌ Final submission failed:', err);
       alert(`Failed to submit: ${err.message || 'Unknown error'}\n\nPlease check your internet connection and try again. If the problem persists, contact support.`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -792,6 +796,9 @@ export default function StudentLesson() {
                     });
                   });
 
+                  // Debug log to verify new code runs
+                  console.log('🔍 Activity type counts:', typeCounts);
+
                   const typeLabels = {
                     en: {
                       gap_fill: 'Gap Fill',
@@ -821,9 +828,10 @@ export default function StudentLesson() {
                     .sort((a, b) => a[0].localeCompare(b[0]))
                     .map(([type, count]) => {
                       const label = typeLabels[language]?.[type] || type;
+                      // FIX: correct pluralization: "activity" -> "activities" for plural
                       const countLabel = language === 'ja'
                         ? `${count} アクティビティ`
-                        : `${count} activity${count > 1 ? 's' : ''}`;
+                        : `${count} ${count === 1 ? 'activity' : 'activities'}`;
                       return (
                         <li key={type}>
                           <span className="font-medium">{label}</span> – {countLabel}
@@ -1160,14 +1168,14 @@ export default function StudentLesson() {
               {isLastPage ? (
                 <button
                   onClick={handleFinalSubmit}
-                  disabled={isPreview || !submissionId}
+                  disabled={isPreview || !submissionId || isSubmitting}
                   className={`flex-1 py-3 px-6 rounded-lg font-medium text-base transition min-h-[48px] ${
-                    isPreview || !submissionId
+                    isPreview || !submissionId || isSubmitting
                       ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
                       : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
-                  {isPreview ? 'Preview Complete' : '📤 Submit Lesson'}
+                  {isSubmitting ? 'Submitting...' : '📤 Submit Lesson'}
                 </button>
               ) : (
                 <button

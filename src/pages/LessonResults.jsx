@@ -16,9 +16,8 @@ function formatResponseText(activityType, storedValue, config) {
   switch (activityType) {
     case 'multiple_choice': {
       // Try to get options from config (legacy) or options_en (new)
-      let options = config?.options || config?.options_en || []
+      let options = config?.options_en || config?.options_ja || config?.options || []
       if (!Array.isArray(options) || options.length === 0) {
-        // Fallback: if options_ja is available but options_en isn't, use that
         options = config?.options_ja || []
       }
       if (Array.isArray(options) && options.length > 0) {
@@ -32,7 +31,6 @@ function formatResponseText(activityType, storedValue, config) {
 
     case 'gap_fill_dropdown': {
       const dropdownOptions = config?.dropdownOptions || []
-      // value is a comma-separated string of indices (e.g., "0,2,1")
       const indices = value.split(',').map(s => parseInt(s.trim(), 10))
       const chosenWords = indices.map((idx, i) => {
         const opts = dropdownOptions[i] || []
@@ -43,11 +41,9 @@ function formatResponseText(activityType, storedValue, config) {
 
     case 'sentence_jumble': {
       const words = config?.words || []
-      // value is a comma-separated string of indices (e.g., "2,0,1")
       const indices = value.split(',').map(s => parseInt(s.trim(), 10))
       const orderedWords = indices.map(idx => {
         const word = (idx >= 0 && idx < words.length) ? words[idx] : '?'
-        // Strip trailing punctuation for a cleaner display
         return word.replace(/[.,!?;:"]$/, '')
       })
       return orderedWords.join(' ')
@@ -59,7 +55,7 @@ function formatResponseText(activityType, storedValue, config) {
       try {
         attempts = JSON.parse(value)
       } catch {
-        return value // raw if not valid JSON
+        return value
       }
       const entries = Object.entries(attempts)
         .filter(([termIdx, defIdx]) => {
@@ -92,7 +88,6 @@ function formatResponseText(activityType, storedValue, config) {
           const idx = parseInt(qIdx, 10)
           const question = questions[idx] || {}
           const selected = parseInt(val, 10)
-          // For true/false, options array may not exist; use 'True'/'False'
           if (question.type === 'true_false' || !question.options) {
             return `Q${idx+1}: ${selected === 0 ? 'True' : 'False'}`
           }
@@ -108,7 +103,6 @@ function formatResponseText(activityType, storedValue, config) {
     case 'short_answer':
     case 'reasoning':
     default:
-      // For these types, the stored value is already the text/answer string
       return value
   }
 }
@@ -158,11 +152,19 @@ export default function LessonResults() {
             const responseText = answers[activityId]
             const gradedKey = activityId + '_graded'
             const graded = answers[gradedKey] || {}
+            // Get score and maxScore from grading result
+            const score = graded.score ?? 0
+            const maxScore = graded.maxScore ?? 0
+            // Use autoCorrect if available, otherwise compute from score
             const autoCorrect = graded.autoCorrect !== undefined ? graded.autoCorrect : null
 
-            const actInfo = activityMap[activityId] || { prompt: `Activity ${activityId}`, position: 999, type: 'unknown', config: {} }
+            const actInfo = activityMap[activityId] || { 
+              prompt: `Activity ${activityId}`, 
+              position: 999, 
+              type: 'unknown', 
+              config: {} 
+            }
 
-            // Use the helper to format the response text based on activity type
             const displayResponse = formatResponseText(actInfo.type, responseText, actInfo.config)
 
             return {
@@ -170,6 +172,8 @@ export default function LessonResults() {
               activity_id: activityId,
               response_text: typeof displayResponse === 'string' ? displayResponse : JSON.stringify(displayResponse),
               auto_correct: autoCorrect,
+              score: score,
+              maxScore: maxScore,
               prompt: actInfo.prompt,
               position: actInfo.position,
               type: actInfo.type,
@@ -252,12 +256,21 @@ export default function LessonResults() {
       }
       for (const r of s.responses) {
         let resultLabel = 'teacher review'
-        // For auto-graded types, treat null as incorrect
-        if (r.type === 'gap_fill' || r.type === 'multiple_choice' || r.type === 'gap_fill_dropdown' || r.type === 'sentence_jumble' || r.type === 'vocabulary_matching' || r.type === 'listening' || r.type === 'dictation') {
-          if (r.auto_correct === true) {
+        // For auto-graded types, use score comparison as primary method
+        const autoTypes = ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
+        if (autoTypes.includes(r.type)) {
+          // Use numeric comparison first (more reliable)
+          if (r.maxScore > 0 && r.score === r.maxScore) {
             resultLabel = 'correct'
+          } else if (r.maxScore > 0 && r.score < r.maxScore) {
+            resultLabel = 'incorrect'
+          } else if (r.auto_correct === true) {
+            // Fallback to autoCorrect flag if maxScore is 0 or comparison is ambiguous
+            resultLabel = 'correct'
+          } else if (r.auto_correct === false) {
+            resultLabel = 'incorrect'
           } else {
-            // false or null -> incorrect
+            // If we can't determine, default to incorrect
             resultLabel = 'incorrect'
           }
         }
@@ -409,19 +422,33 @@ export default function LessonResults() {
                     <p className="text-[10px] text-gray-400 italic">No responses recorded.</p>
                   ) : (
                     s.responses.map((r, index) => {
+                      // Determine result label using score comparison as primary method
                       let resultLabel = 'teacher review'
                       let resultClass = 'text-amber-600'
-                      // For auto-graded types, treat null as incorrect
                       const autoTypes = ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
+                      
                       if (autoTypes.includes(r.type)) {
-                        if (r.auto_correct === true) {
+                        // PRIMARY: Use numeric comparison (score === maxScore)
+                        if (r.maxScore > 0 && r.score === r.maxScore) {
                           resultLabel = 'correct'
                           resultClass = 'text-green-600'
+                        } else if (r.maxScore > 0 && r.score < r.maxScore) {
+                          resultLabel = 'incorrect'
+                          resultClass = 'text-red-600'
+                        } else if (r.auto_correct === true) {
+                          // SECONDARY: Fallback to autoCorrect flag
+                          resultLabel = 'correct'
+                          resultClass = 'text-green-600'
+                        } else if (r.auto_correct === false) {
+                          resultLabel = 'incorrect'
+                          resultClass = 'text-red-600'
                         } else {
+                          // If we can't determine, default to incorrect
                           resultLabel = 'incorrect'
                           resultClass = 'text-red-600'
                         }
                       }
+                      
                       const questionNum = index + 1
                       return (
                         <div key={r.id} className="text-[11px] bg-white rounded px-1.5 py-0.5 border border-gray-100 flex items-center gap-2 flex-wrap">

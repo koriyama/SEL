@@ -1,5 +1,13 @@
 // src/lib/grading.js
 
+// Helper: extract bracketed words from text (e.g., "The [[cat]] sat on the [[mat]]." -> ["cat", "mat"])
+function extractBracketedWords(text) {
+  if (!text) return [];
+  const matches = text.match(/\[\[([^\]]+)\]\]/g);
+  if (!matches) return [];
+  return matches.map(m => m.replace(/\[\[|\]\]/g, '').trim());
+}
+
 export function isAutoGraded(type) {
   return ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation'].includes(type);
 }
@@ -87,25 +95,42 @@ export function gradeMultipleChoice(config, value) {
   };
 }
 
+// ---------- FIXED: Dropdown Gap Fill ----------
 export function gradeGapFillDropdown(config, value) {
+  // Extract bracketed words from the text (use text_en first, then text_ja, then text)
+  const text = config.text_en || config.text_ja || config.text || '';
+  const correctWords = extractBracketedWords(text);
+  if (!correctWords.length) {
+    // If no bracketed words, treat as ungraded or maxScore 0
+    return { score: 0, autoCorrect: null, maxScore: 0 };
+  }
+
+  const options = config.dropdownOptions || [];
+  // For each blank, find which option index matches the bracketed word (case-insensitive)
+  const correctIndices = correctWords.map((word, idx) => {
+    const opts = options[idx] || [];
+    const matchIdx = opts.findIndex(opt => opt.trim().toLowerCase() === word.toLowerCase());
+    // If not found, fallback to 0 (shouldn't happen if teacher sets options correctly)
+    return matchIdx !== -1 ? matchIdx : 0;
+  });
+
+  // Student value is a comma-separated string of selected indices
   const selectedIndices = value ? value.split(',').map(s => parseInt(s.trim(), 10)) : [];
-  const dropdownOptions = config.dropdownOptions || [];
   let score = 0;
   let allCorrect = true;
-  let maxScore = dropdownOptions.length;
+  const maxScore = correctIndices.length;
 
-  for (let i = 0; i < dropdownOptions.length; i++) {
-    const options = dropdownOptions[i] || [];
-    if (options.length === 0) continue;
-    const selectedIdx = selectedIndices[i] !== undefined ? selectedIndices[i] : -1;
-    if (selectedIdx === 0) {
+  for (let i = 0; i < correctIndices.length; i++) {
+    const selected = selectedIndices[i] !== undefined ? selectedIndices[i] : -1;
+    if (selected === correctIndices[i]) {
       score++;
     } else {
       allCorrect = false;
     }
   }
 
-  const allFilled = selectedIndices.length >= dropdownOptions.length && selectedIndices.every(idx => idx >= 0);
+  // If student didn't fill all blanks, autoCorrect is null (not fully graded)
+  const allFilled = selectedIndices.length >= correctIndices.length && selectedIndices.every(idx => idx >= 0);
   const autoCorrect = allFilled ? allCorrect : null;
 
   return { score, autoCorrect, maxScore };
