@@ -551,6 +551,14 @@ export async function deleteLesson(lessonId) {
   return true
 }
 
+// ---------- NEW: Bulk delete lessons ----------
+export async function deleteLessons(lessonIds) {
+  if (!lessonIds || lessonIds.length === 0) return true;
+  const { error } = await supabase.from('lessons').delete().in('id', lessonIds);
+  assertNoError(error, 'Failed to delete lessons');
+  return true;
+}
+
 export async function deleteSubmissions(submissionIds) {
   if (!submissionIds || submissionIds.length === 0) return true
   const { error } = await supabase.from('submissions').delete().in('id', submissionIds)

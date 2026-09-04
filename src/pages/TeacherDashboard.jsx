@@ -14,7 +14,8 @@ import {
   setLessonStatus,
   duplicateLesson,
   renameLesson,
-  deleteLesson
+  deleteLesson,
+  deleteLessons // <-- NEW import
 } from '../lib/api'
 
 import {
@@ -219,6 +220,21 @@ export default function TeacherDashboard() {
       alert('Failed to move lessons: ' + err.message)
     } finally {
       setIsBulkMoving(false)
+    }
+  }
+
+  // ---------- NEW: Bulk delete ----------
+  async function handleBulkDelete() {
+    if (selectedLessonIds.length === 0) return
+    const count = selectedLessonIds.length
+    if (!confirm(`Are you sure you want to delete ${count} lesson${count > 1 ? 's' : ''}? This action cannot be undone.`)) return
+    try {
+      await deleteLessons(selectedLessonIds)
+      setSelectedLessonIds([])
+      await loadData()
+      alert(`Successfully deleted ${count} lesson${count > 1 ? 's' : ''}.`)
+    } catch (err) {
+      alert('Failed to delete lessons: ' + err.message)
     }
   }
 
@@ -432,8 +448,8 @@ export default function TeacherDashboard() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Selection bar – refined */}
-                  <div className="flex items-center gap-3 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                  {/* Selection bar – refined with Delete button */}
+                  <div className="flex items-center gap-3 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm flex-wrap">
                     <input
                       type="checkbox"
                       checked={isAllSelected}
@@ -465,6 +481,13 @@ export default function TeacherDashboard() {
                           className="text-sm text-gray-400 hover:text-gray-600"
                         >
                           Clear
+                        </button>
+                        <div className="h-6 w-px bg-gray-300" />
+                        <button
+                          onClick={handleBulkDelete}
+                          className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md transition"
+                        >
+                          Delete selected
                         </button>
                       </>
                     )}
@@ -627,7 +650,7 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        {/* Bottom selection bar – floating */}
+        {/* Bottom selection bar – floating (now redundant but keep for safety) */}
         {selectedLessonIds.length > 0 && (
           <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 px-5 py-3 flex items-center gap-4 z-30">
             <span className="text-sm font-medium text-gray-700">
@@ -653,6 +676,13 @@ export default function TeacherDashboard() {
               className="text-sm text-gray-400 hover:text-gray-600"
             >
               × Close
+            </button>
+            <div className="h-6 w-px bg-gray-300" />
+            <button
+              onClick={handleBulkDelete}
+              className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md transition"
+            >
+              Delete selected
             </button>
           </div>
         )}
