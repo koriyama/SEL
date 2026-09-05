@@ -119,7 +119,7 @@ const TEMPLATES = {
   }
 }
 
-// ---- Activity Editor Components (unchanged) ----
+// ---- Activity Editor Components ----
 function GapFillEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
@@ -959,20 +959,73 @@ export default function LessonBuilder() {
     setSections(newSections)
   }
 
+  // ---- FIXED handleExport ----
   function handleExport() {
+    // Clean lesson data
+    const cleanLesson = {
+      title: lesson.title || 'Untitled',
+      level: lesson.level || 'B1',
+      reading_text: lesson.reading_text || '',
+      audio_url: lesson.audio_url || null,
+      images: lesson.images || []
+    }
+
+    // Clean sections (strip id AND activities to avoid duplication)
+    const cleanSections = sections.map(section => {
+      // Clean each activity inside the section (for consistency)
+      const cleanActivities = (section.activities || []).map(act => ({
+        type: act.type,
+        config: act.config || {},
+        points: act.points ?? 1,
+        prompt_en: act.prompt_en || '',
+        prompt_ja: act.prompt_ja || '',
+        audio_url: act.audio_url || null,
+        position: act.position !== undefined ? act.position : null
+      }))
+
+      // Return section without id and without activities (they go to top-level activities list)
+      const { id, activities, ...rest } = section
+      return {
+        ...rest,
+        // Keep activities inside sections ONLY for the purpose of the import format
+        // but since we're also exporting top-level activities, we keep them for compatibility
+        // The import will handle both cases
+        activities: cleanActivities
+      }
+    })
+
+    // Clean top-level activities (strip DB fields)
+    const cleanActivities = activities.map(act => {
+      const { id, lesson_id, section_id, created_at, updated_at, ...rest } = act
+      return {
+        type: rest.type,
+        config: rest.config || {},
+        points: rest.points ?? 1,
+        prompt_en: rest.prompt_en || '',
+        prompt_ja: rest.prompt_ja || '',
+        audio_url: rest.audio_url || null,
+        position: rest.position !== undefined ? rest.position : null
+      }
+    })
+
+    // Clean vocabulary
+    const cleanVocabulary = vocabulary.map(v => {
+      const { id, lesson_id, created_at, updated_at, ...rest } = v
+      return {
+        term: rest.term || '',
+        definition: rest.definition || '',
+        example: rest.example || ''
+      }
+    })
+
     const data = {
       version: '1.0',
-      lesson: {
-        title: lesson.title || 'Untitled',
-        level: lesson.level || 'B1',
-        reading_text: lesson.reading_text || '',
-        audio_url: lesson.audio_url || null,
-        images: lesson.images || []
-      },
-      sections: sections.map(({ id, ...rest }) => rest),
-      activities: activities.map(({ id, ...rest }) => rest),
-      vocabulary: vocabulary.map(({ id, ...rest }) => rest)
+      lesson: cleanLesson,
+      sections: cleanSections,
+      activities: cleanActivities,
+      vocabulary: cleanVocabulary
     }
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -984,7 +1037,7 @@ export default function LessonBuilder() {
     URL.revokeObjectURL(url)
   }
 
-  // ---------- SIMPLIFIED IMPORT ----------
+  // ---- Import handler (unchanged – already handles both formats) ----
   const fileInputRef = useRef(null)
 
   function handleImportClick() {

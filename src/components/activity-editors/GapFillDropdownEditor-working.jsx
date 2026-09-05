@@ -42,24 +42,14 @@ export default function GapFillDropdownEditor({ activity, onChange, inputRef }) 
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (English)</label>
+        <label className="text-xs font-medium text-gray-600">Prompt</label>
         <textarea
           ref={inputRef}
           className="field-input"
           rows={2}
-          value={activity.prompt_en || ''}
-          onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
+          value={activity.prompt || ''}
+          onChange={(e) => onChange({ ...activity, prompt: e.target.value })}
           placeholder="e.g. Choose the correct word for each blank."
-        />
-      </div>
-      <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (日本語)</label>
-        <textarea
-          className="field-input"
-          rows={2}
-          value={activity.prompt_ja || ''}
-          onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
-          placeholder="例：それぞれの空欄に合う単語を選んでください。"
         />
       </div>
       <div>
