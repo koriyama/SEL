@@ -1,6 +1,8 @@
 // src/pages/StudentLesson.jsx
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast'
+import { useConfirm } from '../context/ConfirmContext'
 import { supabase } from '../lib/supabaseClient';
 import { 
   getLessonBySlug, 
@@ -153,7 +155,7 @@ function ListeningPlayer({ activity, value, onChange, disabled, language }) {
         {questions.map((q, idx) => {
           const questionText = language === 'en' ? q.question_en : q.question_ja || q.question_en;
           return (
-            <div key={idx} className="border-t border-gray-200 pt-2">
+            <div key={idx} className="border-t border-warm-200 pt-2">
               <p className="font-medium text-sm">{questionText}</p>
               {q.type === 'multiple_choice' && (
                 <div className="space-y-1 mt-1">
@@ -205,6 +207,7 @@ export default function StudentLesson() {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const isPreview = searchParams.get('draft') === 'true';
+  const { confirm } = useConfirm();
 
   const [language, setLanguage] = useState(() => {
     return localStorage.getItem('preferred_language') || 'en';
@@ -283,7 +286,6 @@ export default function StudentLesson() {
             setStudentName(storedName);
             setNameSubmitted(true);
             setShowInstructions(true);
-            // Use RPC to fetch existing submission
             try {
               await setStudentName(storedName);
               const existing = await getSubmissionByLessonStudent(data.id, storedName);
@@ -406,9 +408,13 @@ export default function StudentLesson() {
         }
 
         if (existing && existing.status === 'completed') {
-          const startNew = window.confirm(
-            'You have already completed this lesson. Would you like to start a new attempt? (Your previous results will be kept.)'
-          );
+          const startNew = await confirm({
+            title: 'Start New Attempt?',
+            message: 'You have already completed this lesson. Would you like to start a new attempt? (Your previous results will be kept.)',
+            confirmText: 'Start New',
+            cancelText: 'Cancel',
+            type: 'info'
+          });
           if (!startNew) {
             setNameSubmitted(false);
             setShowInstructions(false);
@@ -447,7 +453,7 @@ export default function StudentLesson() {
         }
       } catch (err) {
         console.error('❌ Error with submission:', err);
-        alert('Could not start or resume lesson. Please try again.\n\nError: ' + err.message);
+        toast.error('Could not start or resume lesson. Please try again.\n\nError: ' + err.message);
         setNameSubmitted(false);
         setShowInstructions(false);
       }
@@ -474,7 +480,7 @@ export default function StudentLesson() {
       return;
     }
     if (!submissionId) {
-      alert('No submission found. Please restart the lesson.');
+      toast.error('No submission found. Please restart the lesson.');
       return;
     }
 
@@ -542,10 +548,10 @@ export default function StudentLesson() {
       setAnswers(gradedAnswers);
       setIsSubmitted(true);
       setScore(finalScore);
-      console.log('✅ Submission completed successfully');
+      toast.success('✅ Submission completed successfully!');
     } catch (err) {
       console.error('❌ Final submission failed:', err);
-      alert(`Failed to submit: ${err.message || 'Unknown error'}\n\nPlease check your internet connection and try again. If the problem persists, contact support.`);
+      toast.error(`Failed to submit: ${err.message || 'Unknown error'}\n\nPlease check your internet connection and try again. If the problem persists, contact support.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -567,7 +573,7 @@ export default function StudentLesson() {
       window.location.href = `/lesson/${slug}`;
     } catch (err) {
       console.error('❌ Save & Exit failed:', err);
-      alert('Failed to save progress. Please try again.');
+      toast.error('Failed to save progress. Please try again.');
     }
   }, [submissionId, currentPage, answers, slug, studentName]);
 
@@ -628,12 +634,7 @@ export default function StudentLesson() {
       case 'reasoning':
         return <ReasoningPlayer {...commonProps} />;
       case 'sentence_jumble':
-        return (
-          <SentenceJumblePlayer
-            {...commonProps}
-            onSubmit={() => goToPage(currentPage + 1)}
-          />
-        );
+        return <SentenceJumblePlayer {...commonProps} onSubmit={() => {}} />;
       case 'vocabulary_matching':
         return <VocabularyMatchingPlayer {...commonProps} />;
       case 'listening':
@@ -652,8 +653,8 @@ export default function StudentLesson() {
   // ---------- Loading ----------
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-warm-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -661,10 +662,10 @@ export default function StudentLesson() {
   // ---------- Error ----------
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md text-center">
-          <p className="text-red-600 dark:text-red-400">{error}</p>
-          <p className="text-xs text-gray-500 mt-2">Slug: {slug} | Preview: {String(isPreview)}</p>
+      <div className="flex items-center justify-center min-h-screen p-6 bg-warm-50">
+        <div className="bg-red-50 border border-red-200 rounded-card p-6 max-w-md text-center">
+          <p className="text-red-600">{error}</p>
+          <p className="text-xs text-warm-500 mt-2">Slug: {slug} | Preview: {String(isPreview)}</p>
         </div>
       </div>
     );
@@ -673,32 +674,32 @@ export default function StudentLesson() {
   // ---------- Welcome / Name entry ----------
   if (!nameSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50 dark:bg-gray-950">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 max-w-md w-full">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-warm-50">
+        <div className="bg-white rounded-card shadow-medium p-8 max-w-md w-full">
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-3xl font-bold text-warm-900 mb-2">
               {t.enterNameTitle(lesson.title)}
             </h1>
             {lesson.level && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-warm-500">
                 {t.enterNameSubtitle.replace('{level}', lesson.level)}
               </p>
             )}
-            <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-4 text-sm text-warm-600">
               {t.enterNamePrompt}
             </p>
-            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3">
+            <div className="mt-3 text-xs text-warm-500 border-t border-warm-200 pt-3">
               <p dangerouslySetInnerHTML={{ __html: t.enterNameImportant }} />
               <p className="mt-1">{t.enterNameAutoSave}</p>
             </div>
           </div>
 
           <div className="flex justify-center mb-4">
-            <div className="inline-flex rounded-full border border-gray-300 dark:border-gray-600 overflow-hidden">
+            <div className="inline-flex rounded-btn border border-warm-300 overflow-hidden">
               <button
                 onClick={() => { setLanguage('en'); localStorage.setItem('preferred_language', 'en'); }}
                 className={`px-4 py-1 text-sm font-medium transition ${
-                  language === 'en' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  language === 'en' ? 'bg-primary-600 text-white' : 'bg-transparent text-warm-600 hover:bg-warm-100'
                 }`}
               >
                 English
@@ -706,7 +707,7 @@ export default function StudentLesson() {
               <button
                 onClick={() => { setLanguage('ja'); localStorage.setItem('preferred_language', 'ja'); }}
                 className={`px-4 py-1 text-sm font-medium transition ${
-                  language === 'ja' ? 'bg-blue-600 text-white' : 'bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  language === 'ja' ? 'bg-primary-600 text-white' : 'bg-transparent text-warm-600 hover:bg-warm-100'
                 }`}
               >
                 日本語
@@ -725,13 +726,13 @@ export default function StudentLesson() {
               value={studentName}
               onChange={(e) => setStudentName(e.target.value)}
               placeholder={t.namePlaceholder}
-              className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              className="input-field"
               autoFocus
               required
             />
             <button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition text-base min-h-[48px]"
+              className="w-full btn-primary py-3 text-base"
             >
               {t.startButton}
             </button>
@@ -745,22 +746,22 @@ export default function StudentLesson() {
   if (showInstructions) {
     const totalActivities = sections.reduce((acc, sec) => acc + (sec.activities || []).length, 0);
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-gray-50 dark:bg-gray-950">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 max-w-2xl w-full">
+      <div className="min-h-screen flex items-center justify-center p-6 bg-warm-50">
+        <div className="bg-white rounded-card shadow-medium p-8 max-w-2xl w-full">
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-3xl font-bold text-warm-900 mb-2">
               {t.instructionsTitle(lesson.title, lesson.level, sections.length, totalActivities)}
             </h1>
           </div>
 
-          <div className="space-y-4 text-gray-700 dark:text-gray-300">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-              <h3 className="font-semibold text-blue-800 dark:text-blue-300">{t.aboutLesson}</h3>
+          <div className="space-y-4 text-warm-700">
+            <div className="bg-primary-50 p-4 rounded-card">
+              <h3 className="font-semibold text-primary-800">{t.aboutLesson}</h3>
               <p className="text-sm mt-1">{t.aboutLessonText(sections.length)}</p>
             </div>
 
-            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
-              <h3 className="font-semibold text-green-800 dark:text-green-300">{t.navigation}</h3>
+            <div className="bg-green-50 p-4 rounded-card">
+              <h3 className="font-semibold text-green-800">{t.navigation}</h3>
               <ul className="text-sm list-disc list-inside mt-1 space-y-1">
                 {t.navItems.map((item, idx) => (
                   <li key={idx} dangerouslySetInnerHTML={{ __html: item }} />
@@ -768,22 +769,22 @@ export default function StudentLesson() {
               </ul>
             </div>
 
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
-              <h3 className="font-semibold text-yellow-800 dark:text-yellow-300">{t.referenceDrawer}</h3>
+            <div className="bg-yellow-50 p-4 rounded-card">
+              <h3 className="font-semibold text-yellow-800">{t.referenceDrawer}</h3>
               <ul className="text-sm list-disc list-inside mt-1 space-y-1">
                 {t.drawerItems.map((item, idx) => (
                   <li key={idx} dangerouslySetInnerHTML={{ __html: item }} />
                 ))}
               </ul>
-              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <span className="inline-block bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-full">
+              <div className="mt-2 text-xs text-warm-500">
+                <span className="inline-block bg-warm-200 px-3 py-1 rounded-full">
                   {t.drawerExample}
                 </span>
               </div>
             </div>
 
-            <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-              <h3 className="font-semibold text-purple-800 dark:text-purple-300">
+            <div className="bg-purple-50 p-4 rounded-card">
+              <h3 className="font-semibold text-purple-800">
                 {t.activityTypes}
               </h3>
               <ul className="text-sm list-disc list-inside mt-1 space-y-1">
@@ -795,9 +796,6 @@ export default function StudentLesson() {
                       typeCounts[type] = (typeCounts[type] || 0) + 1;
                     });
                   });
-
-                  // Debug log to verify new code runs
-                  console.log('🔍 Activity type counts:', typeCounts);
 
                   const typeLabels = {
                     en: {
@@ -828,7 +826,6 @@ export default function StudentLesson() {
                     .sort((a, b) => a[0].localeCompare(b[0]))
                     .map(([type, count]) => {
                       const label = typeLabels[language]?.[type] || type;
-                      // FIX: correct pluralization: "activity" -> "activities" for plural
                       const countLabel = language === 'ja'
                         ? `${count} アクティビティ`
                         : `${count} ${count === 1 ? 'activity' : 'activities'}`;
@@ -848,7 +845,7 @@ export default function StudentLesson() {
           <div className="mt-8 flex justify-center">
             <button
               onClick={() => setShowInstructions(false)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition text-lg min-h-[56px]"
+              className="btn-primary text-lg py-3 px-8"
             >
               {t.startLessonButton}
             </button>
@@ -997,37 +994,37 @@ export default function StudentLesson() {
     });
 
     return (
-      <div className="min-h-screen p-6 bg-gray-50 dark:bg-gray-950">
-        <div className="max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8">
+      <div className="min-h-screen p-6 bg-warm-50">
+        <div className="max-w-2xl mx-auto bg-white rounded-card shadow-medium p-8">
           <div className="text-center">
             <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <h2 className="text-3xl font-bold text-warm-900 mb-2">
               {t.wellDone}
             </h2>
             {score !== null && (
-              <div className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-2xl font-bold px-6 py-3 rounded-full mt-2">
+              <div className="inline-block bg-primary-100 text-primary-800 text-2xl font-bold px-6 py-3 rounded-full mt-2">
                 {score}%
               </div>
             )}
-            <p className="text-gray-600 dark:text-gray-400 mt-4">
+            <p className="text-warm-600 mt-4">
               {t.thankYou}
             </p>
 
             <button
               onClick={() => setShowAnswers(!showAnswers)}
-              className="mt-6 inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition"
+              className="mt-6 inline-block btn-primary"
             >
               {showAnswers ? t.hideAnswers : t.seeAnswers}
             </button>
 
-            <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-card text-sm text-yellow-800">
               {t.integrityWarning}
             </div>
           </div>
 
           {showAnswers && (
-            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{t.yourAnswers}</h3>
+            <div className="mt-6 border-t border-warm-200 pt-4">
+              <h3 className="text-lg font-semibold text-warm-900 mb-2">{t.yourAnswers}</h3>
               <div
                 className="space-y-3 max-h-96 overflow-y-auto select-none no-copy"
                 onCopy={(e) => e.preventDefault()}
@@ -1035,19 +1032,19 @@ export default function StudentLesson() {
                 style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
               >
                 {answerSummary.map((item) => (
-                  <div key={item.qNum} className="text-sm border-b border-gray-100 dark:border-gray-800 pb-3">
+                  <div key={item.qNum} className="text-sm border-b border-warm-100 pb-3">
                     <div className="flex justify-between items-start gap-2">
-                      <span className="font-medium text-gray-700 dark:text-gray-300">Q{item.qNum}:</span>
-                      <span className="text-gray-600 dark:text-gray-400 flex-1">{item.prompt}</span>
+                      <span className="font-medium text-warm-700">Q{item.qNum}:</span>
+                      <span className="text-warm-600 flex-1">{item.prompt}</span>
                     </div>
                     <div className="flex justify-between items-center mt-1 pl-4">
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">{t.yourAnswerLabel}</span>
-                      <span className="font-mono text-sm text-gray-800 dark:text-gray-200 flex-1 ml-2">
+                      <span className="text-warm-500 text-xs">{t.yourAnswerLabel}</span>
+                      <span className="font-mono text-sm text-warm-800 flex-1 ml-2">
                         {item.answer}
                       </span>
                       <div className="flex items-center gap-2 ml-2">
                         {item.scoreDisplay && (
-                          <span className="text-xs font-mono text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
+                          <span className="text-xs font-mono text-warm-600 bg-warm-100 px-2 py-0.5 rounded">
                             {item.scoreDisplay}
                           </span>
                         )}
@@ -1069,9 +1066,9 @@ export default function StudentLesson() {
   // ---------- No sections ----------
   if (!sections || sections.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 max-w-md text-center">
-          <p className="text-yellow-700 dark:text-yellow-300">This lesson has no sections yet.</p>
+      <div className="min-h-screen flex items-center justify-center p-6 bg-warm-50">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-card p-6 max-w-md text-center">
+          <p className="text-yellow-700">This lesson has no sections yet.</p>
         </div>
       </div>
     );
@@ -1092,14 +1089,14 @@ export default function StudentLesson() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-32 md:pb-8">
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 px-4 py-3 md:px-8">
+    <div className="min-h-screen bg-warm-50 pb-32 md:pb-8">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-warm-200/60 px-4 py-3 md:px-8">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex-1 min-w-0">
-            <h1 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white truncate">
+            <h1 className="text-base md:text-lg font-semibold text-warm-900 truncate">
               {lesson.title}
             </h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+            <p className="text-xs text-warm-500 truncate">
               {isPreview ? '🔍 PREVIEW' : `Student: ${studentName}`}
             </p>
           </div>
@@ -1110,11 +1107,11 @@ export default function StudentLesson() {
                 setLanguage(newLang);
                 localStorage.setItem('preferred_language', newLang);
               }}
-              className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              className="text-xs bg-warm-200 hover:bg-warm-300 px-2 py-1 rounded transition"
             >
               {language === 'en' ? '日本語' : 'English'}
             </button>
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full whitespace-nowrap">
+            <span className="text-xs font-medium text-warm-500 bg-warm-100 px-3 py-1 rounded-full whitespace-nowrap">
               {currentPage + 1} / {totalPages}
             </span>
             {!isPreview && submissionId && (
@@ -1132,11 +1129,11 @@ export default function StudentLesson() {
         {currentSection && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              <h2 className="text-2xl md:text-3xl font-bold text-warm-900 mb-2">
                 {renderInline(sectionTitle)}
               </h2>
               {sectionIntro && (
-                <div className="text-gray-600 dark:text-gray-300 text-base md:text-lg prose prose-gray dark:prose-invert max-w-none">
+                <div className="text-warm-600 text-base md:text-lg prose prose-gray max-w-none">
                   {renderInline(sectionIntro)}
                 </div>
               )}
@@ -1147,7 +1144,7 @@ export default function StudentLesson() {
                 return (
                   <div
                     key={activity.id}
-                    className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 md:p-6"
+                    className="bg-white rounded-card shadow-soft border border-warm-200 p-4 md:p-6"
                   >
                     {renderActivity(activity, idx)}
                   </div>
@@ -1159,7 +1156,7 @@ export default function StudentLesson() {
               {!isFirstPage && (
                 <button
                   onClick={() => goToPage(currentPage - 1)}
-                  className="flex-1 py-3 px-6 rounded-lg font-medium text-base transition min-h-[48px] bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white"
+                  className="flex-1 btn-secondary py-3 text-base"
                 >
                   ← Previous
                 </button>
@@ -1169,9 +1166,9 @@ export default function StudentLesson() {
                 <button
                   onClick={handleFinalSubmit}
                   disabled={isPreview || !submissionId || isSubmitting}
-                  className={`flex-1 py-3 px-6 rounded-lg font-medium text-base transition min-h-[48px] ${
+                  className={`flex-1 py-3 px-6 rounded-btn font-medium text-base transition min-h-[48px] ${
                     isPreview || !submissionId || isSubmitting
-                      ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                      ? 'bg-warm-100 text-warm-400 cursor-not-allowed'
                       : 'bg-green-600 hover:bg-green-700 text-white'
                   }`}
                 >
@@ -1180,7 +1177,7 @@ export default function StudentLesson() {
               ) : (
                 <button
                   onClick={() => goToPage(currentPage + 1)}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-medium text-base transition min-h-[48px]"
+                  className="flex-1 btn-primary py-3 text-base"
                 >
                   Next →
                 </button>

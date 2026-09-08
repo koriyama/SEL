@@ -1,8 +1,7 @@
 // src/pages/Login.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { adminAutoLogin } from '../lib/adminLogin';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -12,15 +11,8 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Optional: pre‑fill email/password from environment variables (for manual login convenience)
-  useEffect(() => {
-    const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-    const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
-    if (adminEmail) setEmail(adminEmail);
-    if (adminPass) setPassword(adminPass);
-  }, []);
+  // Removed the useEffect that pre-filled from env vars
 
-  // Handle regular login (email + password)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -30,24 +22,6 @@ const Login = () => {
       navigate('/');
     } catch (err) {
       setError(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle secure admin auto‑login (via serverless function)
-  const handleAdminAutoLogin = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      const user = await adminAutoLogin();
-      if (user) {
-        navigate('/');
-      } else {
-        setError('Auto‑login failed. Please log in manually.');
-      }
-    } catch (err) {
-      setError(err.message || 'Auto‑login error');
     } finally {
       setLoading(false);
     }
@@ -104,7 +78,6 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              id="admin-login-btn"
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
               {loading ? 'Logging in...' : 'Log in'}
@@ -112,12 +85,20 @@ const Login = () => {
           </div>
         </form>
 
-        {/* Secure admin auto‑login button (only visible when token is set) */}
         {import.meta.env.VITE_ADMIN_TOKEN && (
           <div className="text-center border-t border-gray-200 pt-4">
             <button
               type="button"
-              onClick={handleAdminAutoLogin}
+              onClick={async () => {
+                // Admin auto‑login logic
+                const { adminAutoLogin } = await import('../lib/adminLogin');
+                try {
+                  await adminAutoLogin();
+                  navigate('/');
+                } catch (err) {
+                  setError(err.message || 'Auto‑login error');
+                }
+              }}
               disabled={loading}
               className="text-sm text-blue-600 hover:underline disabled:opacity-50"
             >

@@ -14,19 +14,20 @@ export default function SentenceJumblePlayer({
   const prompt = activity.prompt || '';
   const correctWords = config.words || [];
 
-  // Track if we've already initialized from props
-  const initialized = useRef(false);
+  // Ref to guard against re-initializing on value changes after first load
+  const initializedRef = useRef(false);
 
-  // State: filled array, length = correctWords.length, each entry is either a word index or -1 (empty)
+  // State: filled array, each entry is a word index or undefined (empty)
   const [filled, setFilled] = useState([]);
 
-  // State: pool of unused word indices (middle words only)
-  const [pool, setPool] = useState([]);
+  // State: pool of all middle indices with a 'placed' flag – fixed length
+  const [pool, setPool] = useState([]); // array of { index, placed }
 
-  // Helper: convert filled array to string for storage
-  const filledToString = (arr) => arr.map(v => v !== undefined && v !== null ? v : -1).join(',');
+  // Helper: convert filled array to a comma‑separated string for storage
+  const filledToString = (arr) =>
+    arr.map(v => (v !== undefined && v !== null ? v : -1)).join(',');
 
-  // Helper: parse string to filled array
+  // Helper: parse stored string back to a filled array
   const parseFilled = (str, length) => {
     if (!str) return Array(length).fill(undefined);
     const parts = str.split(',').map(s => parseInt(s.trim(), 10));
@@ -38,73 +39,75 @@ export default function SentenceJumblePlayer({
     return result;
   };
 
-  // Initialize from props when they change
+  // ---- Initialise – only when the word list changes (not on every value update) ----
   useEffect(() => {
     if (!correctWords || correctWords.length === 0) {
       setFilled([]);
       setPool([]);
+      initializedRef.current = false;
       return;
     }
 
     const total = correctWords.length;
+    const firstIdx = 0;
+    const lastIdx = total - 1;
 
-    // If we have a value, parse it
-    if (value) {
+    // If we have a saved value and haven't initialised yet, parse it
+    if (value && !initializedRef.current) {
       const parsed = parseFilled(value, total);
-      // Check if parsed has any valid entries
       if (parsed.some(v => v !== undefined)) {
-        setFilled(parsed);
-        // Build pool from indices not in filled
         const used = new Set(parsed.filter(v => v !== undefined));
-        const remaining = [...Array(total).keys()].filter(idx => !used.has(idx));
-        // Shuffle remaining
-        for (let i = remaining.length - 1; i > 0; i--) {
+        const middle = [...Array(total).keys()].filter(idx => idx !== firstIdx && idx !== lastIdx);
+        // Shuffle middle once
+        for (let i = middle.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+          [middle[i], middle[j]] = [middle[j], middle[i]];
         }
-        setPool(remaining);
-        initialized.current = true;
+        const poolData = middle.map(idx => ({
+          index: idx,
+          placed: used.has(idx)
+        }));
+        setFilled(parsed);
+        setPool(poolData);
+        initializedRef.current = true;
         return;
       }
     }
 
-    // No saved value – set up with first and last words pre-placed
-    if (!initialized.current) {
-      const firstIdx = 0;
-      const lastIdx = total - 1;
-      
-      // Create filled array with undefined placeholders, then set first and last
-      const newFilled = Array(total).fill(undefined);
-      newFilled[0] = firstIdx;
-      newFilled[total - 1] = lastIdx;
-      
-      // Middle words go to pool (shuffled)
-      const middle = [...Array(total).keys()].filter(idx => idx !== firstIdx && idx !== lastIdx);
-      for (let i = middle.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [middle[i], middle[j]] = [middle[j], middle[i]];
-      }
-      
-      setFilled(newFilled);
-      setPool(middle);
-      initialized.current = true;
+    // No saved value – start with first and last pre‑placed
+    const newFilled = Array(total).fill(undefined);
+    newFilled[0] = firstIdx;
+    newFilled[total - 1] = lastIdx;
+    setFilled(newFilled);
+
+    // Shuffle middle words once, all unplaced
+    const middle = [...Array(total).keys()].filter(idx => idx !== firstIdx && idx !== lastIdx);
+    for (let i = middle.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [middle[i], middle[j]] = [middle[j], middle[i]];
     }
-  }, [correctWords, value]);
+    const poolData = middle.map(idx => ({ index: idx, placed: false }));
+    setPool(poolData);
+    initializedRef.current = true;
+  }, [correctWords]); // <-- only runs when the word list changes, not on value updates
 
   // ---- Handlers ----
-  const handleTileClick = (idx) => {
-    if (disabled) return;
-    if (!pool.includes(idx)) return;
-    
-    // Find the first empty slot (undefined)
+  const handleTileClick = (item) => {
+    if (disabled || item.placed) return;
+
     const emptyIndex = filled.findIndex(val => val === undefined);
-    if (emptyIndex === -1) return; // No empty slots
-    
+    if (emptyIndex === -1) return;
+
     const newFilled = [...filled];
-    newFilled[emptyIndex] = idx;
-    const newPool = pool.filter(i => i !== idx);
+    newFilled[emptyIndex] = item.index;
     setFilled(newFilled);
+
+    // Mark the tile as placed (keeps pool length constant)
+    const newPool = pool.map(p =>
+      p.index === item.index ? { ...p, placed: true } : p
+    );
     setPool(newPool);
+
     onChange(filledToString(newFilled));
   };
 
@@ -112,72 +115,35 @@ export default function SentenceJumblePlayer({
     if (disabled) return;
     const idx = filled[blankIndex];
     if (idx === undefined) return;
-    
-    // Don't allow removal of first or last word (pre-placed)
-    if (blankIndex === 0 || blankIndex === correctWords.length - 1) {
-      return;
-    }
-    
-    // Remove tile from this blank position back to pool
+
+    // Don't allow removal of first or last word
+    if (blankIndex === 0 || blankIndex === correctWords.length - 1) return;
+
     const newFilled = [...filled];
     newFilled[blankIndex] = undefined;
-    const newPool = [...pool, idx];
-    // Shuffle pool for randomness
-    for (let i = newPool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [newPool[i], newPool[j]] = [newPool[j], newPool[i]];
-    }
     setFilled(newFilled);
+
+    // Mark the tile as unplaced
+    const newPool = pool.map(p =>
+      p.index === idx ? { ...p, placed: false } : p
+    );
     setPool(newPool);
+
     onChange(filledToString(newFilled));
   };
 
-  // ---- Submit with error handling ----
+  // ---- Submit ----
   const handleSubmit = () => {
-    if (disabled) {
-      console.warn('⚠️ Submit attempted while disabled');
-      return;
-    }
-    
-    if (!onSubmit) {
-      console.warn('⚠️ No onSubmit callback provided');
-      return;
-    }
+    if (disabled || !onSubmit) return;
 
-    try {
-      // Validate the current state
-      const filledCount = filled.filter(val => val !== undefined).length;
-      
-      // If not all tiles are placed, confirm with user
-      if (filledCount < correctWords.length) {
-        const confirmSubmit = window.confirm(
-          `You have placed ${filledCount} out of ${correctWords.length} tiles. ` +
-          'Do you want to submit the sentence as is?'
-        );
-        if (!confirmSubmit) {
-          return; // User cancelled
-        }
-      }
-      
-      // Ensure the filled data is valid before submitting
-      const isValid = filled.every(val => {
-        if (val === undefined) return true; // Empty slots are OK (handled by confirm)
-        return typeof val === 'number' && val >= 0 && val < correctWords.length;
-      });
-      
-      if (!isValid) {
-        console.error('❌ Invalid filled data:', filled);
-        alert('There was an issue with your answer. Please try rearranging the tiles.');
-        return;
-      }
-      
-      // All checks passed - call the onSubmit callback
-      console.log('✅ Submitting jumble answer');
-      onSubmit();
-    } catch (error) {
-      console.error('❌ Error during jumble submission:', error);
-      alert('Something went wrong. Please try again.');
+    const filledCount = filled.filter(v => v !== undefined).length;
+    if (filledCount < correctWords.length) {
+      if (!window.confirm(
+        `You have placed ${filledCount} out of ${correctWords.length} tiles. ` +
+        'Do you want to submit the sentence as is?'
+      )) return;
     }
+    onSubmit();
   };
 
   // ---- Render ----
@@ -191,13 +157,11 @@ export default function SentenceJumblePlayer({
   }
 
   const totalBlanks = correctWords.length;
-  const filledCount = filled.filter(val => val !== undefined).length;
+  const filledCount = filled.filter(v => v !== undefined).length;
   const isComplete = filledCount === totalBlanks;
 
-  // Helper to check if a blank position contains a pre-placed word
-  const isPrePlaced = (blankIndex) => {
-    return blankIndex === 0 || blankIndex === correctWords.length - 1;
-  };
+  const isPrePlaced = (blankIndex) =>
+    blankIndex === 0 || blankIndex === correctWords.length - 1;
 
   return (
     <div className="space-y-4">
@@ -214,7 +178,7 @@ export default function SentenceJumblePlayer({
           const word = wordIdx !== undefined ? correctWords[wordIdx] : null;
           const prePlaced = isPrePlaced(idx);
           const isFilled = word !== null;
-          
+
           return (
             <div
               key={idx}
@@ -238,21 +202,26 @@ export default function SentenceJumblePlayer({
         })}
       </div>
 
-      {/* Pool of tiles (middle words only) – displayed in a flex wrap */}
+      {/* Pool of tiles – stable layout, placed tiles are invisible but occupy space */}
       <div className="flex flex-wrap gap-2 justify-center p-2">
-        {pool.map((idx) => (
-          <div
-            key={idx}
-            onClick={() => handleTileClick(idx)}
-            className={`px-4 py-2 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-500 rounded-lg shadow-sm transition ${
-              disabled 
-                ? 'opacity-50 cursor-not-allowed' 
-                : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-blue-400 dark:hover:border-blue-500 active:scale-95'
-            }`}
-          >
-            {correctWords[idx]}
-          </div>
-        ))}
+        {pool.map((item) => {
+          const isPlaced = item.placed;
+          const word = correctWords[item.index];
+          return (
+            <div
+              key={item.index}
+              onClick={() => handleTileClick(item)}
+              className={`px-4 py-2 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-500 rounded-lg shadow-sm transition ${
+                disabled || isPlaced
+                  ? 'opacity-0 pointer-events-none'
+                  : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-blue-400 dark:hover:border-blue-500 active:scale-95'
+              }`}
+              style={{ minWidth: '3rem', textAlign: 'center' }}
+            >
+              {word}
+            </div>
+          );
+        })}
       </div>
 
       {/* Submit button */}

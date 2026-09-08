@@ -9,7 +9,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check active session on mount
     const fetchSession = async () => {
       const session = await getSession();
       setUser(session?.user ?? null);
@@ -18,7 +17,6 @@ export const AuthProvider = ({ children }) => {
 
     fetchSession();
 
-    // Listen for auth changes (login, logout, token refresh)
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null);
@@ -31,7 +29,6 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // Login with email/password
   const login = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -41,24 +38,27 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  // Sign up
-  const signup = async (email, password) => {
+  // ✅ Signup now accepts displayName
+  const signup = async (email, password, displayName) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          display_name: displayName?.trim() || email.split('@')[0],
+        },
+      },
     });
     if (error) throw error;
     return data;
   };
 
-  // Logout
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setUser(null);
   };
 
-  // Reset password – sends a reset email
   const resetPassword = async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
@@ -66,7 +66,6 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  // Update password (after reset)
   const updatePassword = async (newPassword) => {
     const { error } = await supabase.auth.updateUser({
       password: newPassword,

@@ -1,30 +1,50 @@
-import { renderInline } from '../../lib/inlineMarkup.jsx';
+// src/components/activity-players/ShortAnswerPlayer.jsx
+import React, { useState, useEffect } from 'react';
+import MicrophoneButton from '../MicrophoneButton';
 
-export default function ShortAnswerPlayer({ activity, value, onChange }) {
-  const config = activity.config || {};
-  const prompt = activity.prompt || 'Write your answer:';
-  const suggestedAnswer = config.suggestedAnswer || '';
+export default function ShortAnswerPlayer({ activity, value, onChange, disabled, language }) {
+  const prompt = activity.prompt || '';
 
-  const preventPaste = (e) => {
-    e.preventDefault();
-    return false;
+  const [text, setText] = useState(value || '');
+
+  useEffect(() => {
+    if (value !== text) {
+      setText(value || '');
+    }
+  }, [value]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setText(val);
+    onChange(val);
+  };
+
+  const handleTranscript = (transcript) => {
+    setText(transcript);
+    onChange(transcript);
   };
 
   return (
-    <div className="text-ink space-y-2">
-      {prompt && <div className="text-sm text-muted">{renderInline(prompt)}</div>}
-      <textarea
-        className="w-full border-b border-ink bg-transparent px-1 py-1 outline-none focus:border-crest resize-y min-h-[80px]"
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        onPaste={preventPaste}
-        onDrop={preventPaste}
-        onContextMenu={preventPaste}
-        placeholder="Type your answer here..."
-      />
-      {suggestedAnswer && (
-        <p className="text-xs text-muted italic">Suggested answer: {suggestedAnswer}</p>
-      )}
+    <div className="space-y-3">
+      {prompt && <div className="text-sm font-medium">{prompt}</div>}
+      <div className="relative">
+        <textarea
+          value={text}
+          onChange={handleChange}
+          disabled={disabled}
+          className="w-full px-4 py-3 rounded-input border border-warm-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20 transition-all duration-200 resize-y min-h-[100px] disabled:opacity-60"
+          placeholder="Write your answer..."
+        />
+        {!disabled && (
+          <div className="absolute bottom-2 right-2">
+            <MicrophoneButton
+              onTranscript={handleTranscript}
+              disabled={disabled}
+              language={language === 'ja' ? 'ja-JP' : 'en-US'}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

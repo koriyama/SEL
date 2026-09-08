@@ -1,6 +1,10 @@
 // src/pages/LessonBuilder.jsx
-import { useEffect, useState, useRef } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+console.log('✅ LessonBuilder loaded (folder‑aware navigation with fallback)');
+
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { useParams, Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../context/ConfirmContext'
 import {
   getLesson,
   createLesson,
@@ -13,8 +17,10 @@ import {
   listVocabulary,
   saveVocabulary,
   uploadAudio,
-  uploadImage
+  uploadImage,
+  listFolders
 } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { renderInline } from '../lib/inlineMarkup.jsx'
 import AudioPlayer from '../components/AudioPlayer.jsx'
 import ReadingText from '../components/ReadingText.jsx'
@@ -119,7 +125,7 @@ const TEMPLATES = {
   }
 }
 
-// ---- Activity Editor Components ----
+// ---- Activity Editor Components (compact) ----
 function GapFillEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
@@ -136,10 +142,10 @@ function GapFillEditor({ activity, onChange, inputRef }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (English)</label>
+        <label className="label">Prompt (English)</label>
         <textarea
           ref={inputRef}
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_en || ''}
           onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
@@ -147,9 +153,9 @@ function GapFillEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (日本語)</label>
+        <label className="label">Prompt (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_ja || ''}
           onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
@@ -157,9 +163,9 @@ function GapFillEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Text with blanks (English)</label>
+        <label className="label">Text with blanks (English)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={3}
           value={config.text_en || ''}
           onChange={(e) => updateConfig({ text_en: e.target.value })}
@@ -167,22 +173,22 @@ function GapFillEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Text with blanks (日本語)</label>
+        <label className="label">Text with blanks (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={3}
           value={config.text_ja || ''}
           onChange={(e) => updateConfig({ text_ja: e.target.value })}
           placeholder='例：「____ は ____ に座った。」'
         />
-        <p className="text-xs text-muted mt-1">
-          Use <code className="bg-gray-100 px-1">[[ ]]</code>, <code className="bg-gray-100 px-1">____</code>, or <code className="bg-gray-100 px-1">___</code> around the missing word(s).
+        <p className="text-xs text-warm-400 mt-1">
+          Use <code className="bg-warm-100 px-1 rounded">[[ ]]</code>, <code className="bg-warm-100 px-1 rounded">____</code>, or <code className="bg-warm-100 px-1 rounded">___</code> around the missing word(s).
         </p>
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Answer key (one per blank, comma separated)</label>
+        <label className="label">Answer key (one per blank, comma separated)</label>
         <input
-          className="field-input"
+          className="input-field"
           value={answerString}
           onChange={(e) => setAnswerString(e.target.value)}
           onBlur={handleAnswerBlur}
@@ -194,8 +200,8 @@ function GapFillEditor({ activity, onChange, inputRef }) {
           }}
           placeholder="great, trivialised|trivialized, New York|New York City"
         />
-        <p className="text-xs text-muted mt-1">
-          For each blank, you can list multiple acceptable answers separated by a pipe (<code className="bg-gray-100 px-1">|</code>).
+        <p className="text-xs text-warm-400 mt-1">
+          For each blank, you can list multiple acceptable answers separated by a pipe (<code className="bg-warm-100 px-1 rounded">|</code>).
           Spaces around the pipe are ignored. Multi‑word answers are supported.
         </p>
       </div>
@@ -241,10 +247,10 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (English)</label>
+        <label className="label">Prompt (English)</label>
         <textarea
           ref={inputRef}
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_en || ''}
           onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
@@ -252,9 +258,9 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (日本語)</label>
+        <label className="label">Prompt (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_ja || ''}
           onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
@@ -262,7 +268,7 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Options (English / 日本語)</label>
+        <label className="label">Options (English / 日本語)</label>
         <div className="space-y-1">
           {options_en.map((opt, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -271,16 +277,16 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
                 name={radioName}
                 checked={correctIndex === i}
                 onChange={() => selectCorrect(i)}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 text-primary-600 focus:ring-primary-500"
               />
               <input
-                className="field-input flex-1"
+                className="input-field flex-1"
                 value={opt}
                 onChange={(e) => updateOption(i, 'en', e.target.value)}
                 placeholder={`Option ${i + 1} (EN)`}
               />
               <input
-                className="field-input flex-1"
+                className="input-field flex-1"
                 value={options_ja[i] || ''}
                 onChange={(e) => updateOption(i, 'ja', e.target.value)}
                 placeholder={`選択肢 ${i + 1} (JA)`}
@@ -297,13 +303,13 @@ function MultipleChoiceEditor({ activity, onChange, inputRef }) {
           ))}
           <button
             type="button"
-            className="text-xs text-blue-600 hover:underline"
+            className="text-xs text-primary-600 hover:underline"
             onClick={addOption}
           >
             + Add option
           </button>
         </div>
-        <p className="text-xs text-muted mt-1">
+        <p className="text-xs text-warm-400 mt-1">
           Select the correct answer by clicking the circle next to the option.
         </p>
       </div>
@@ -317,10 +323,10 @@ function ShortAnswerEditor({ activity, onChange, inputRef }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (English)</label>
+        <label className="label">Prompt (English)</label>
         <textarea
           ref={inputRef}
-          className="field-input"
+          className="input-field"
           rows={3}
           value={activity.prompt_en || ''}
           onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
@@ -328,9 +334,9 @@ function ShortAnswerEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (日本語)</label>
+        <label className="label">Prompt (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={3}
           value={activity.prompt_ja || ''}
           onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
@@ -338,9 +344,9 @@ function ShortAnswerEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Suggested answer (optional)</label>
+        <label className="label">Suggested answer (optional)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={2}
           value={config.suggestedAnswer || ''}
           onChange={(e) => updateConfig({ suggestedAnswer: e.target.value })}
@@ -355,10 +361,10 @@ function ReasoningEditor({ activity, onChange, inputRef }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (English)</label>
+        <label className="label">Prompt (English)</label>
         <textarea
           ref={inputRef}
-          className="field-input"
+          className="input-field"
           rows={3}
           value={activity.prompt_en || ''}
           onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
@@ -366,9 +372,9 @@ function ReasoningEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Prompt (日本語)</label>
+        <label className="label">Prompt (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={3}
           value={activity.prompt_ja || ''}
           onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
@@ -425,10 +431,10 @@ function ListeningEditor({ activity, onChange, inputRef }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Instructions (English)</label>
+        <label className="label">Instructions (English)</label>
         <textarea
           ref={inputRef}
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_en || ''}
           onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
@@ -436,9 +442,9 @@ function ListeningEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Instructions (日本語)</label>
+        <label className="label">Instructions (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_ja || ''}
           onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
@@ -446,19 +452,19 @@ function ListeningEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Audio URL</label>
+        <label className="label">Audio URL</label>
         <input
-          className="field-input"
+          className="input-field"
           value={config.audio_url || ''}
           onChange={(e) => updateConfig({ audio_url: e.target.value })}
           placeholder="https://example.com/audio.mp3"
         />
-        <p className="text-xs text-muted mt-1">Upload audio using the button in the activity toolbar above.</p>
+        <p className="text-xs text-warm-400 mt-1">Upload audio using the button in the activity toolbar above.</p>
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Questions</label>
+        <label className="label">Questions</label>
         {questions.map((q, qIdx) => (
-          <div key={qIdx} className="border border-gray-200 rounded p-3 mt-2 bg-gray-50">
+          <div key={qIdx} className="border border-warm-200 rounded-card p-3 mt-2 bg-warm-50">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">Question {qIdx + 1}</span>
               <button
@@ -471,19 +477,19 @@ function ListeningEditor({ activity, onChange, inputRef }) {
             </div>
             <div className="space-y-2 mt-2">
               <input
-                className="field-input text-sm"
+                className="input-field text-sm"
                 placeholder="Question (EN)"
                 value={q.question_en}
                 onChange={(e) => updateQuestion(qIdx, 'question_en', e.target.value)}
               />
               <input
-                className="field-input text-sm"
+                className="input-field text-sm"
                 placeholder="Question (JA)"
                 value={q.question_ja}
                 onChange={(e) => updateQuestion(qIdx, 'question_ja', e.target.value)}
               />
               <select
-                className="field-input text-sm"
+                className="input-field text-sm"
                 value={q.type}
                 onChange={(e) => updateQuestion(qIdx, 'type', e.target.value)}
               >
@@ -501,7 +507,7 @@ function ListeningEditor({ activity, onChange, inputRef }) {
                         onChange={() => updateQuestion(qIdx, 'correct_answer', optIdx)}
                       />
                       <input
-                        className="field-input text-sm flex-1"
+                        className="input-field text-sm flex-1"
                         placeholder={`Option ${optIdx + 1}`}
                         value={opt}
                         onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
@@ -519,7 +525,7 @@ function ListeningEditor({ activity, onChange, inputRef }) {
                   ))}
                   <button
                     type="button"
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs text-primary-600 hover:underline"
                     onClick={() => addOption(qIdx)}
                   >
                     + Add option
@@ -568,10 +574,10 @@ function DictationEditor({ activity, onChange, inputRef }) {
   return (
     <div className="space-y-3">
       <div>
-        <label className="text-xs font-medium text-gray-600">Instructions (English)</label>
+        <label className="label">Instructions (English)</label>
         <textarea
           ref={inputRef}
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_en || ''}
           onChange={(e) => onChange({ ...activity, prompt_en: e.target.value })}
@@ -579,9 +585,9 @@ function DictationEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Instructions (日本語)</label>
+        <label className="label">Instructions (日本語)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={2}
           value={activity.prompt_ja || ''}
           onChange={(e) => onChange({ ...activity, prompt_ja: e.target.value })}
@@ -589,25 +595,25 @@ function DictationEditor({ activity, onChange, inputRef }) {
         />
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Audio URL</label>
+        <label className="label">Audio URL</label>
         <input
-          className="field-input"
+          className="input-field"
           value={config.audio_url || ''}
           onChange={(e) => updateConfig({ audio_url: e.target.value })}
           placeholder="https://example.com/audio.mp3"
         />
-        <p className="text-xs text-muted mt-1">Upload audio using the button in the activity toolbar above.</p>
+        <p className="text-xs text-warm-400 mt-1">Upload audio using the button in the activity toolbar above.</p>
       </div>
       <div>
-        <label className="text-xs font-medium text-gray-600">Expected text (for grading)</label>
+        <label className="label">Expected text (for grading)</label>
         <textarea
-          className="field-input"
+          className="input-field"
           rows={3}
           value={config.expected_text || ''}
           onChange={(e) => updateConfig({ expected_text: e.target.value })}
           placeholder="The quick brown fox jumps over the lazy dog."
         />
-        <p className="text-xs text-muted mt-1">Grading is case‑insensitive and trims whitespace.</p>
+        <p className="text-xs text-warm-400 mt-1">Grading is case‑insensitive and trims whitespace.</p>
       </div>
     </div>
   )
@@ -637,22 +643,63 @@ const ACTIVITY_TYPES = [
   { value: 'dictation', label: 'Dictation' },
 ]
 
+// ---- Helper functions for import ----
+function validateActivityType(type) {
+  const validTypes = [
+    'gap_fill', 'multiple_choice', 'short_answer', 'reasoning',
+    'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching',
+    'listening', 'dictation'
+  ]
+  return validTypes.includes(type) ? type : 'gap_fill'
+}
+
+function normalizeConfig(type, config) {
+  const cfg = (config && typeof config === 'object' && !Array.isArray(config)) ? config : {}
+  if (type === 'multiple_choice') {
+    if (!cfg.options_en && cfg.options) {
+      cfg.options_en = cfg.options
+      cfg.options_ja = cfg.options
+    }
+    if (cfg.correct_index !== undefined && cfg.correctIndex === undefined) {
+      cfg.correctIndex = cfg.correct_index
+    }
+  }
+  if ((type === 'gap_fill' || type === 'gap_fill_dropdown') && !cfg.text_en && cfg.text) {
+    cfg.text_en = cfg.text
+    cfg.text_ja = ''
+  }
+  return cfg
+}
+
 // ---- Main Builder Component ----
 export default function LessonBuilder() {
+  console.log('✅ LessonBuilder rendered (folder‑aware navigation with fallback)');
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const isEditing = Boolean(id)
+  const { user } = useAuth()
+  const { confirm } = useConfirm()
 
-  const [lesson, setLesson] = useState(null)
+  const initialData = location.state || {}
+
+  const [lesson, setLesson] = useState(initialData.lesson || null)
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [error, setError] = useState(null)
 
-  const [sections, setSections] = useState([])
-  const [activities, setActivities] = useState([])
-  const [vocabulary, setVocabulary] = useState([])
+  const [sections, setSections] = useState(initialData.sections || [])
+  const [activities, setActivities] = useState(initialData.activities || [])
+  const [vocabulary, setVocabulary] = useState(initialData.vocabulary || [])
 
-  const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [folders, setFolders] = useState([])
+  const [selectedFolderId, setSelectedFolderId] = useState(
+    initialData.folderId || searchParams.get('folder') || null
+  )
+  const [folderError, setFolderError] = useState(false)
+
+  const [showTemplateModal, setShowTemplateModal] = useState(!isEditing && !initialData.lesson)
 
   const [audioFile, setAudioFile] = useState(null)
   const [imageFiles, setImageFiles] = useState([])
@@ -660,86 +707,152 @@ export default function LessonBuilder() {
   const activitiesContainerRef = useRef(null)
   const inputRefs = useRef({})
   const focusedRef = useRef(new Set())
+  const folderSelectRef = useRef(null)
 
-  // Helper to apply a template
-  function applyTemplate(templateKey) {
-    const template = TEMPLATES[templateKey]
-    if (!template) return
-
-    const newSections = template.sections.map(s => ({
-      ...s,
-      id: `temp-section-${Date.now()}-${Math.random()}`,
-      activities: s.activities.map(act => ({
-        ...act,
-        id: `temp-act-${Date.now()}-${Math.random()}`,
-        section_id: null // will be filled on save
-      }))
-    }))
-
-    const newActivities = newSections.flatMap(s => s.activities)
-
-    setSections(newSections)
-    setActivities(newActivities)
-    setVocabulary([])
-    setShowTemplateModal(false)
-  }
-
+  // ---- Load folders only once ----
   useEffect(() => {
+    async function loadFolders() {
+      if (!user) return
+      try {
+        const data = await listFolders(user.id)
+        setFolders(data)
+        const folderParam = searchParams.get('folder')
+        if (folderParam && folderParam !== 'all' && folderParam !== 'uncategorised') {
+          const folderExists = data.some(f => f.id === folderParam)
+          if (folderExists && !selectedFolderId) {
+            setSelectedFolderId(folderParam)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load folders:', err)
+      }
+    }
+    loadFolders()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]) // only when user changes
+
+  // ---- Load lesson data only when id or initialData changes ----
+  useEffect(() => {
+    if (initialData.lesson) {
+      if (initialData.lesson.folder_id && !selectedFolderId) {
+        setSelectedFolderId(initialData.lesson.folder_id)
+      }
+      return
+    }
+
     if (!id) {
-      // New lesson – show the template modal
-      setLesson({ title: '', level: 'B1', reading_text: '', audio_url: null, images: [] })
+      const folderParam = searchParams.get('folder')
+      if (folderParam && folderParam !== 'all' && folderParam !== 'uncategorised') {
+        setSelectedFolderId(folderParam)
+      }
+      setLesson({ title: '', level: 'B1', reading_text: '', audio_url: null, images: [], is_public: false })
       setShowTemplateModal(true)
-      // Initially set to blank until user chooses
       setSections([])
       setActivities([])
       setVocabulary([])
       return
     }
 
-    // EDITING EXISTING LESSON
     async function load() {
       try {
         const l = await getLesson(id)
         setLesson(l)
-        setSections(await listSections(id))
-        setActivities(await listActivities(id))
-        setVocabulary(await listVocabulary(id))
+        if (l.folder_id && !selectedFolderId) {
+          setSelectedFolderId(l.folder_id)
+        }
+        const secs = await listSections(id)
+        setSections(secs)
+        const acts = await listActivities(id)
+        setActivities(acts)
+        const voc = await listVocabulary(id)
+        setVocabulary(voc)
       } catch (err) {
         setError('Failed to load lesson: ' + err.message)
+        toast.error('Failed to load lesson: ' + err.message)
       }
     }
     load()
-  }, [id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]) // only when id changes
 
+  // ---- Focus on new activity ----
   useEffect(() => {
-    if (activities.length > 0) {
-      const lastActivity = activities[activities.length - 1]
-      if (lastActivity.id && typeof lastActivity.id === 'string' && lastActivity.id.startsWith('temp-') && !focusedRef.current.has(lastActivity.id)) {
-        const ref = inputRefs.current[lastActivity.id]
-        if (ref) {
-          ref.focus()
-          focusedRef.current.add(lastActivity.id)
-          const element = ref.closest('.activity-card')
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          }
-        }
+    if (activities.length === 0) return
+    const last = activities[activities.length - 1]
+    if (last.id && typeof last.id === 'string' && last.id.startsWith('temp-') && !focusedRef.current.has(last.id)) {
+      const ref = inputRefs.current[last.id]
+      if (ref) {
+        ref.focus()
+        focusedRef.current.add(last.id)
+        const el = ref.closest('.activity-card')
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }
   }, [activities])
 
-  async function handleSave(shouldPublish = false) {
+  // ---- Validate folder ----
+  const validateFolder = useCallback(() => {
+    if (!selectedFolderId) {
+      setFolderError(true)
+      if (folderSelectRef.current) {
+        folderSelectRef.current.focus()
+        folderSelectRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+      toast.error('Please select a folder before saving.')
+      return false
+    }
+    setFolderError(false)
+    return true
+  }, [selectedFolderId])
+
+  // ---- Apply template ----
+  const applyTemplate = useCallback((templateKey) => {
+    const template = TEMPLATES[templateKey]
+    if (!template) return
+    const newSections = template.sections.map(s => ({
+      ...s,
+      id: `temp-section-${Date.now()}-${Math.random()}`,
+      activities: s.activities.map(act => ({
+        ...act,
+        id: `temp-act-${Date.now()}-${Math.random()}`,
+        section_id: null
+      }))
+    }))
+    const newActivities = newSections.flatMap(s => s.activities)
+    setSections(newSections)
+    setActivities(newActivities)
+    setVocabulary([])
+    setShowTemplateModal(false)
+  }, [])
+
+  // ---- Navigate back to the current folder ----
+  const goBackToFolder = useCallback(() => {
+    const folderToUse = selectedFolderId || lesson?.folder_id
+    if (folderToUse) {
+      navigate(`/?folder=${folderToUse}`)
+    } else {
+      navigate('/')
+    }
+  }, [selectedFolderId, lesson, navigate])
+
+  // ---- Save (draft/publish) ----
+  const handleSave = useCallback(async (shouldPublish = false) => {
+    if (!validateFolder()) return
+
     setSaving(true)
     setError(null)
     try {
       let savedLesson
-      if (isEditing) {
-        savedLesson = await updateLesson(id, {
+      if (isEditing || initialData.lesson) {
+        const lessonId = id || initialData.lesson?.id
+        savedLesson = await updateLesson(lessonId, {
           title: lesson.title,
           level: lesson.level,
           reading_text: lesson.reading_text,
           audio_url: lesson.audio_url,
-          images: lesson.images || []
+          images: lesson.images || [],
+          folder_id: selectedFolderId,
+          is_public: lesson.is_public || false
         })
       } else {
         savedLesson = await createLesson({
@@ -747,13 +860,13 @@ export default function LessonBuilder() {
           level: lesson.level,
           reading_text: lesson.reading_text,
           audio_url: lesson.audio_url,
-          images: lesson.images || []
-        })
+          images: lesson.images || [],
+          is_public: lesson.is_public || false
+        }, user.id, selectedFolderId)
       }
 
       const lessonId = savedLesson.id
 
-      // --- Strip 'activities' from sections before saving ---
       const sectionData = sections.map(({ activities, ...rest }) => rest)
       const savedSections = await saveSections(lessonId, sectionData)
 
@@ -766,7 +879,6 @@ export default function LessonBuilder() {
       })
 
       const firstSectionId = savedSections.length > 0 ? savedSections[0].id : null
-
       const updatedActivities = activities.map(act => {
         if (act.section_id && sectionIdMap[act.section_id]) {
           return { ...act, section_id: sectionIdMap[act.section_id] }
@@ -782,64 +894,67 @@ export default function LessonBuilder() {
 
       if (shouldPublish) {
         await setLessonStatus(lessonId, 'published')
-      } else if (isEditing) {
+      } else if (isEditing || initialData.lesson) {
         await setLessonStatus(lessonId, 'draft')
       }
 
-      if (shouldPublish) {
-        navigate('/')
-      } else if (!isEditing) {
-        navigate(`/builder/${lessonId}`)
+      const folderName = folders.find(f => f.id === selectedFolderId)?.name || 'Uncategorised'
+      toast.success(`✅ Lesson saved to "${folderName}"!`)
+
+      // Navigate back to the current folder – use the lesson's folder_id as fallback
+      const folderToUse = selectedFolderId || savedLesson.folder_id
+      if (folderToUse) {
+        navigate(`/?folder=${folderToUse}`)
       } else {
-        const updated = await getLesson(lessonId)
-        setLesson(updated)
-        setSections(await listSections(lessonId))
-        setActivities(await listActivities(lessonId))
-        setVocabulary(await listVocabulary(lessonId))
-        if (!isEditing) {
-          navigate(`/builder/${lessonId}`, { replace: true })
-        }
+        navigate('/')
       }
+
     } catch (err) {
       setError(err.message)
+      toast.error(`❌ Save failed: ${err.message}`)
       console.error('Save error:', err)
     } finally {
       setSaving(false)
       setPublishing(false)
     }
-  }
+  }, [validateFolder, isEditing, initialData, id, lesson, selectedFolderId, folders, sections, activities, vocabulary, user, navigate])
 
-  async function handlePublish() {
+  const handlePublish = useCallback(async () => {
+    if (!validateFolder()) {
+      toast.error('Please select a folder before publishing.')
+      return
+    }
     setPublishing(true)
     await handleSave(true)
-  }
+  }, [validateFolder, handleSave])
 
-  async function handleAudioUpload(file) {
+  // ---- Audio/Image uploads ----
+  const handleAudioUpload = useCallback(async (file) => {
     if (!file) return
     try {
       const url = await uploadAudio(file)
-      setLesson({ ...lesson, audio_url: url })
+      setLesson(prev => ({ ...prev, audio_url: url }))
       setAudioFile(null)
+      toast.success('Audio uploaded successfully!')
     } catch (err) {
-      setError('Failed to upload audio: ' + err.message)
+      toast.error('Failed to upload audio: ' + err.message)
     }
-  }
+  }, [])
 
-  async function handleImageUpload(files) {
+  const handleImageUpload = useCallback(async (files) => {
     if (!files || files.length === 0) return
     try {
       const urls = await Promise.all(Array.from(files).map(f => uploadImage(f)))
-      setLesson({
-        ...lesson,
-        images: [...(lesson.images || []), ...urls]
-      })
+      setLesson(prev => ({ ...prev, images: [...(prev.images || []), ...urls] }))
       setImageFiles([])
+      toast.success('Images uploaded successfully!')
     } catch (err) {
-      setError('Failed to upload images: ' + err.message)
+      toast.error('Failed to upload images: ' + err.message)
     }
-  }
+  }, [])
 
-  function addActivity(type) {
+  // ---- Activity CRUD ----
+  const addActivity = useCallback((type) => {
     const defaultSectionId = sections.length > 0 ? sections[0].id : null
     let newActivity = {
       id: `temp-${Date.now()}-${Math.random()}`,
@@ -851,7 +966,6 @@ export default function LessonBuilder() {
       section_id: defaultSectionId,
       audio_url: null
     }
-
     switch (type) {
       case 'multiple_choice':
         newActivity.config = { options_en: ['', '', ''], options_ja: ['', '', ''], correctIndex: -1 }
@@ -874,29 +988,33 @@ export default function LessonBuilder() {
       default:
         newActivity.config = {}
     }
-    setActivities([...activities, newActivity])
-  }
+    setActivities(prev => [...prev, newActivity])
+  }, [sections])
 
-  function updateActivity(index, updated) {
-    const newActivities = [...activities]
-    newActivities[index] = updated
-    setActivities(newActivities)
-  }
+  const updateActivity = useCallback((index, updated) => {
+    setActivities(prev => {
+      const newActs = [...prev]
+      newActs[index] = updated
+      return newActs
+    })
+  }, [])
 
-  function removeActivity(index) {
-    setActivities(activities.filter((_, i) => i !== index))
-  }
+  const removeActivity = useCallback((index) => {
+    setActivities(prev => prev.filter((_, i) => i !== index))
+  }, [])
 
-  function moveActivity(index, direction) {
+  const moveActivity = useCallback((index, direction) => {
     const newIndex = index + direction
     if (newIndex < 0 || newIndex >= activities.length) return
-    const newActivities = [...activities]
-    const [removed] = newActivities.splice(index, 1)
-    newActivities.splice(newIndex, 0, removed)
-    setActivities(newActivities)
-  }
+    setActivities(prev => {
+      const newActs = [...prev]
+      const [removed] = newActs.splice(index, 1)
+      newActs.splice(newIndex, 0, removed)
+      return newActs
+    })
+  }, [activities.length])
 
-  async function handleActivityAudioUpload(activityIndex, file) {
+  const handleActivityAudioUpload = useCallback(async (activityIndex, file) => {
     if (!file) return
     try {
       const uploadingActivity = { ...activities[activityIndex] }
@@ -909,59 +1027,67 @@ export default function LessonBuilder() {
       updated._uploading = false
       updated._fileName = file.name
       updateActivity(activityIndex, updated)
+      toast.success('Activity audio uploaded!')
     } catch (err) {
-      setError('Failed to upload activity audio: ' + err.message)
-      const failedActivity = { ...activities[activityIndex] }
-      failedActivity._uploading = false
-      updateActivity(activityIndex, failedActivity)
+      toast.error('Failed to upload activity audio: ' + err.message)
+      const failed = { ...activities[activityIndex] }
+      failed._uploading = false
+      updateActivity(activityIndex, failed)
     }
-  }
+  }, [activities, updateActivity])
 
-  function addVocabularyItem() {
-    setVocabulary([...vocabulary, { id: `temp-${Date.now()}`, term: '', definition: '', example: '' }])
-  }
+  // ---- Vocabulary CRUD ----
+  const addVocabularyItem = useCallback(() => {
+    setVocabulary(prev => [...prev, { id: `temp-${Date.now()}`, term: '', definition: '', example: '' }])
+  }, [])
 
-  function updateVocabulary(index, field, value) {
-    const newVocab = [...vocabulary]
-    newVocab[index][field] = value
-    setVocabulary(newVocab)
-  }
+  const updateVocabulary = useCallback((index, field, value) => {
+    setVocabulary(prev => {
+      const newVoc = [...prev]
+      newVoc[index][field] = value
+      return newVoc
+    })
+  }, [])
 
-  function removeVocabulary(index) {
-    setVocabulary(vocabulary.filter((_, i) => i !== index))
-  }
+  const removeVocabulary = useCallback((index) => {
+    setVocabulary(prev => prev.filter((_, i) => i !== index))
+  }, [])
 
-  function addSection() {
-    setSections([...sections, {
+  // ---- Section CRUD ----
+  const addSection = useCallback(() => {
+    setSections(prev => [...prev, {
       id: `temp-${Date.now()}-${Math.random()}`,
       title: '',
       intro_text_en: DEFAULT_SECTION_INTRO.en,
       intro_text_ja: DEFAULT_SECTION_INTRO.ja
     }])
-  }
+  }, [])
 
-  function updateSection(index, field, value) {
-    const newSections = [...sections]
-    newSections[index][field] = value
-    setSections(newSections)
-  }
+  const updateSection = useCallback((index, field, value) => {
+    setSections(prev => {
+      const newSecs = [...prev]
+      newSecs[index][field] = value
+      return newSecs
+    })
+  }, [])
 
-  function removeSection(index) {
-    setSections(sections.filter((_, i) => i !== index))
-  }
+  const removeSection = useCallback((index) => {
+    setSections(prev => prev.filter((_, i) => i !== index))
+  }, [])
 
-  function moveSection(index, direction) {
+  const moveSection = useCallback((index, direction) => {
     const newIndex = index + direction
     if (newIndex < 0 || newIndex >= sections.length) return
-    const newSections = [...sections]
-    const [removed] = newSections.splice(index, 1)
-    newSections.splice(newIndex, 0, removed)
-    setSections(newSections)
-  }
+    setSections(prev => {
+      const newSecs = [...prev]
+      const [removed] = newSecs.splice(index, 1)
+      newSecs.splice(newIndex, 0, removed)
+      return newSecs
+    })
+  }, [sections.length])
 
-  // ---- FIXED handleExport ----
-  function handleExport() {
-    // Clean lesson data
+  // ---- Export/Import/Preview ----
+  const handleExport = useCallback(() => {
     const cleanLesson = {
       title: lesson.title || 'Untitled',
       level: lesson.level || 'B1',
@@ -970,45 +1096,29 @@ export default function LessonBuilder() {
       images: lesson.images || []
     }
 
-    // Clean sections (strip id AND activities to avoid duplication)
     const cleanSections = sections.map(section => {
-      // Clean each activity inside the section (for consistency)
-      const cleanActivities = (section.activities || []).map(act => ({
-        type: act.type,
-        config: act.config || {},
-        points: act.points ?? 1,
-        prompt_en: act.prompt_en || '',
-        prompt_ja: act.prompt_ja || '',
-        audio_url: act.audio_url || null,
-        position: act.position !== undefined ? act.position : null
-      }))
-
-      // Return section without id and without activities (they go to top-level activities list)
-      const { id, activities, ...rest } = section
+      const cleanActivities = activities
+        .filter(act => act.section_id === section.id)
+        .map(act => ({
+          type: act.type,
+          config: act.config || {},
+          points: act.points ?? 1,
+          prompt_en: act.prompt_en || '',
+          prompt_ja: act.prompt_ja || '',
+          audio_url: act.audio_url || null,
+          position: act.position !== undefined ? act.position : null
+        }))
+      const { lesson_id, position, created_at, updated_at, ...rest } = section
       return {
-        ...rest,
-        // Keep activities inside sections ONLY for the purpose of the import format
-        // but since we're also exporting top-level activities, we keep them for compatibility
-        // The import will handle both cases
+        id: rest.id,
+        title: rest.title || '',
+        intro_text_en: rest.intro_text_en || '',
+        intro_text_ja: rest.intro_text_ja || '',
+        intro_text: rest.intro_text || '',
         activities: cleanActivities
       }
     })
 
-    // Clean top-level activities (strip DB fields)
-    const cleanActivities = activities.map(act => {
-      const { id, lesson_id, section_id, created_at, updated_at, ...rest } = act
-      return {
-        type: rest.type,
-        config: rest.config || {},
-        points: rest.points ?? 1,
-        prompt_en: rest.prompt_en || '',
-        prompt_ja: rest.prompt_ja || '',
-        audio_url: rest.audio_url || null,
-        position: rest.position !== undefined ? rest.position : null
-      }
-    })
-
-    // Clean vocabulary
     const cleanVocabulary = vocabulary.map(v => {
       const { id, lesson_id, created_at, updated_at, ...rest } = v
       return {
@@ -1018,14 +1128,7 @@ export default function LessonBuilder() {
       }
     })
 
-    const data = {
-      version: '1.0',
-      lesson: cleanLesson,
-      sections: cleanSections,
-      activities: cleanActivities,
-      vocabulary: cleanVocabulary
-    }
-
+    const data = { version: '1.0', lesson: cleanLesson, sections: cleanSections, vocabulary: cleanVocabulary }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1035,16 +1138,12 @@ export default function LessonBuilder() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-  }
+    toast.success('Lesson exported successfully!')
+  }, [lesson, sections, activities, vocabulary])
 
-  // ---- Import handler (unchanged – already handles both formats) ----
   const fileInputRef = useRef(null)
-
-  function handleImportClick() {
-    fileInputRef.current.click()
-  }
-
-  function handleImportFile(e) {
+  const handleImportClick = useCallback(() => fileInputRef.current?.click(), [])
+  const handleImportFile = useCallback((e) => {
     const file = e.target.files[0]
     if (!file) return
     const reader = new FileReader()
@@ -1058,123 +1157,111 @@ export default function LessonBuilder() {
           level: data.lesson.level || 'B1',
           reading_text: data.lesson.reading_text || '',
           audio_url: data.lesson.audio_url || null,
-          images: data.lesson.images || []
+          images: data.lesson.images || [],
+          is_public: data.lesson.is_public || false
         })
 
-        const importedSections = data.sections || []
+        let importedSections = data.sections || []
+        let importedActivities = data.activities || []
+        const hasNestedActivities = importedSections.some(s => s.activities && s.activities.length > 0)
+
         let newSections = []
         let newActivities = []
 
-        if (importedSections.length === 0 && data.activities && data.activities.length > 0) {
-          const defaultSection = {
-            id: `temp-${Date.now()}-0-${Math.random()}`,
-            title: 'Activities',
-            intro_text_en: '',
-            intro_text_ja: ''
+        if (hasNestedActivities) {
+          importedSections.forEach((s, idx) => {
+            const tempId = `temp-section-${Date.now()}-${idx}-${Math.random()}`
+            newSections.push({
+              id: tempId,
+              title: s.title || `Section ${idx + 1}`,
+              intro_text_en: s.intro_text_en || s.intro_text || '',
+              intro_text_ja: s.intro_text_ja || '',
+            })
+
+            ;(s.activities || []).forEach((act, actIdx) => {
+              const type = validateActivityType(act.type)
+              const config = normalizeConfig(type, act.config)
+              newActivities.push({
+                id: `temp-${Date.now()}-${idx}-${actIdx}-${Math.random()}`,
+                type: type,
+                prompt_en: act.prompt_en || act.prompt || '',
+                prompt_ja: act.prompt_ja || '',
+                config: config,
+                points: act.points ?? 1,
+                section_id: tempId,
+                audio_url: act.audio_url || null,
+                position: act.position !== undefined ? act.position : actIdx
+              })
+            })
+          })
+        } else if (importedActivities.length > 0) {
+          if (importedSections.length === 0) {
+            throw new Error('Flat import requires at least one section with an "id" field.')
           }
-          newSections = [defaultSection]
-          data.activities.forEach((a, i) => {
-            const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
-            const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
-            const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
+
+          const missingIdSections = importedSections
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => s.id === undefined || s.id === null)
+          if (missingIdSections.length > 0) {
+            const indices = missingIdSections.map(({ i }) => i).join(', ')
+            throw new Error(`Flat import requires each section to have an "id" field. Missing id in section(s): ${indices}`)
+          }
+
+          const sectionIdMap = {}
+          importedSections.forEach((s, idx) => {
+            const tempId = `temp-section-${Date.now()}-${idx}-${Math.random()}`
+            sectionIdMap[s.id] = tempId
+            newSections.push({
+              id: tempId,
+              title: s.title || `Section ${idx + 1}`,
+              intro_text_en: s.intro_text_en || s.intro_text || '',
+              intro_text_ja: s.intro_text_ja || '',
+            })
+          })
+
+          const mismatches = []
+          importedActivities.forEach((act, idx) => {
+            const sid = act.section_id
+            if (sid === undefined || sid === null || !(sid in sectionIdMap)) {
+              mismatches.push({
+                index: idx,
+                section_id: sid,
+                activity: act
+              })
+            }
+          })
+
+          if (mismatches.length > 0) {
+            const details = mismatches
+              .map(m => `Activity #${m.index} has section_id "${m.section_id}" (no matching section id)`)
+              .join('\n')
+            throw new Error(`Flat import validation failed:\n${details}`)
+          }
+
+          importedActivities.forEach((act, idx) => {
+            const type = validateActivityType(act.type)
+            const config = normalizeConfig(type, act.config)
+            const tempSectionId = sectionIdMap[act.section_id]
             newActivities.push({
-              id: `temp-${Date.now()}-${i}-${Math.random()}`,
+              id: `temp-${Date.now()}-flat-${idx}-${Math.random()}`,
               type: type,
-              prompt_en: a.prompt_en || a.prompt || '',
-              prompt_ja: a.prompt_ja || '',
+              prompt_en: act.prompt_en || act.prompt || '',
+              prompt_ja: act.prompt_ja || '',
               config: config,
-              points: a.points ?? 1,
-              section_id: defaultSection.id,
-              audio_url: a.audio_url || null
+              points: act.points ?? 1,
+              section_id: tempSectionId,
+              audio_url: act.audio_url || null,
+              position: act.position !== undefined ? act.position : idx
             })
           })
         } else {
-          importedSections.forEach((s, idx) => {
-            const secId = `temp-${Date.now()}-${idx}-${Math.random()}`
-            newSections.push({
-              id: secId,
-              title: s.title || '',
-              intro_text_en: s.intro_text_en || s.intro_text || '',
-              intro_text_ja: s.intro_text_ja || ''
-            })
-
-            let sectionActivities = []
-            if (s.activities && Array.isArray(s.activities)) {
-              sectionActivities = s.activities
-            } else {
-              const oldSectionId = s.id || idx
-              sectionActivities = (data.activities || []).filter(a => {
-                if (a.section_id !== undefined && a.section_id !== null) {
-                  if (a.section_id === oldSectionId) return true
-                  if (!isNaN(oldSectionId) && !isNaN(a.section_id) && parseInt(a.section_id, 10) === parseInt(oldSectionId, 10)) {
-                    return true
-                  }
-                }
-                return false
-              })
-            }
-
-            sectionActivities.forEach((a, i) => {
-              const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
-              const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
-              const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
-              if (type === 'multiple_choice' && !config.options_en && config.options) {
-                config.options_en = config.options
-                config.options_ja = config.options
-              }
-              if (type === 'gap_fill' && !config.text_en && config.text) {
-                config.text_en = config.text
-                config.text_ja = ''
-              }
-              if (type === 'gap_fill_dropdown' && !config.text_en && config.text) {
-                config.text_en = config.text
-                config.text_ja = ''
-              }
-              newActivities.push({
-                id: `temp-${Date.now()}-${idx}-${i}-${Math.random()}`,
-                type: type,
-                prompt_en: a.prompt_en || a.prompt || '',
-                prompt_ja: a.prompt_ja || '',
-                config: config,
-                points: a.points ?? 1,
-                section_id: secId,
-                audio_url: a.audio_url || null
-              })
-            })
+          const defaultId = `temp-section-${Date.now()}-empty-${Math.random()}`
+          newSections.push({
+            id: defaultId,
+            title: 'Activities',
+            intro_text_en: '',
+            intro_text_ja: ''
           })
-
-          const assignedActivityIds = new Set(newActivities.map(a => a.id))
-          const unassigned = (data.activities || []).filter(a => !assignedActivityIds.has(`temp-${a.id}`))
-          if (unassigned.length > 0 && newSections.length > 0) {
-            const firstSectionId = newSections[0].id
-            unassigned.forEach((a, i) => {
-              const validTypes = ['gap_fill', 'multiple_choice', 'short_answer', 'reasoning', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
-              const type = validTypes.includes(a.type) ? a.type : 'gap_fill'
-              const config = (a.config && typeof a.config === 'object' && !Array.isArray(a.config)) ? a.config : {}
-              if (type === 'multiple_choice' && !config.options_en && config.options) {
-                config.options_en = config.options
-                config.options_ja = config.options
-              }
-              if (type === 'gap_fill' && !config.text_en && config.text) {
-                config.text_en = config.text
-                config.text_ja = ''
-              }
-              if (type === 'gap_fill_dropdown' && !config.text_en && config.text) {
-                config.text_en = config.text
-                config.text_ja = ''
-              }
-              newActivities.push({
-                id: `temp-${Date.now()}-unassigned-${i}-${Math.random()}`,
-                type: type,
-                prompt_en: a.prompt_en || a.prompt || '',
-                prompt_ja: a.prompt_ja || '',
-                config: config,
-                points: a.points ?? 1,
-                section_id: firstSectionId,
-                audio_url: a.audio_url || null
-              })
-            })
-          }
         }
 
         setSections(newSections)
@@ -1193,28 +1280,30 @@ export default function LessonBuilder() {
         }
         setVocabulary(newVocabulary)
         setError(null)
+        toast.success('Lesson imported successfully!')
       } catch (err) {
         setError('Failed to import lesson: ' + err.message)
+        toast.error('Failed to import: ' + err.message)
         console.error('Import error:', err)
       }
     }
     reader.readAsText(file)
     e.target.value = ''
-  }
+  }, [])
 
-  function handlePreview() {
-    if (!lesson.share_slug) {
-      alert('Please save the lesson first to generate a preview link.')
+  const handlePreview = useCallback(() => {
+    if (!lesson?.share_slug) {
+      toast.error('Please save the lesson first to generate a preview link.')
       return
     }
     window.open(`/lesson/${lesson.share_slug}?draft=true`, '_blank')
-  }
+  }, [lesson])
 
-  // Render
+  // ---- Render ----
   if (error) {
     return (
       <div className="min-h-screen p-6">
-        <div className="card p-6 border-crest bg-crestSoft text-crest">
+        <div className="card p-6 border-red-200 bg-red-50 text-red-700">
           <p>{error}</p>
           <button className="btn-secondary mt-4" onClick={() => navigate('/')}>
             Back to Dashboard
@@ -1227,7 +1316,7 @@ export default function LessonBuilder() {
   if (!lesson) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted">Loading…</p>
+        <p className="text-warm-500">Loading…</p>
       </div>
     )
   }
@@ -1235,26 +1324,26 @@ export default function LessonBuilder() {
   const isPublished = lesson.status === 'published'
   const activityCount = activities.length
 
+  // ---- Main JSX ----
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Template Selection Modal */}
+    <div className="min-h-screen bg-warm-50">
       {showTemplateModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-3xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-card max-w-3xl w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-display mb-2">Choose a Lesson Template</h2>
-            <p className="text-muted text-sm mb-6">
+            <p className="text-warm-500 text-sm mb-6">
               Pick a starting structure for your new lesson. You can add, remove, or rearrange activities and sections later.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(TEMPLATES).map(([key, template]) => (
                 <button
                   key={key}
-                  className="text-left border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200"
+                  className="text-left border border-warm-200 rounded-card p-4 hover:border-primary-400 hover:bg-primary-50 transition-all duration-200"
                   onClick={() => applyTemplate(key)}
                 >
                   <div className="text-xl font-semibold">{template.label}</div>
-                  <div className="text-sm text-gray-600 mt-1">{template.description}</div>
-                  <div className="text-xs text-gray-400 mt-2">
+                  <div className="text-sm text-warm-600 mt-1">{template.description}</div>
+                  <div className="text-xs text-warm-400 mt-2">
                     {template.sections.length} section{template.sections.length !== 1 ? 's' : ''} ·{' '}
                     {template.sections.reduce((acc, s) => acc + (s.activities ? s.activities.length : 0), 0)} activities
                   </div>
@@ -1263,51 +1352,52 @@ export default function LessonBuilder() {
             </div>
             <div className="mt-6 flex justify-end">
               <button
-                className="text-sm text-gray-500 hover:text-gray-700"
-                onClick={() => {
-                  setShowTemplateModal(false)
-                  setSections([])
-                  setActivities([])
-                }}
+                className="text-sm text-warm-500 hover:text-warm-700"
+                onClick={() => navigate('/')}
               >
-                Cancel (start empty)
+                Cancel (go back)
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4">
+      <header className="bg-white/80 backdrop-blur-md border-b border-warm-200/60 sticky top-0 z-10">
+        <div className="container-wide py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Link to="/" className="text-gray-500 hover:text-gray-700">
-                ← Dashboard
-              </Link>
+              <button
+                onClick={goBackToFolder}
+                className="text-warm-500 hover:text-warm-700"
+              >
+                ← Back to {selectedFolderId ? 'Folder' : 'Dashboard'}
+              </button>
               <h1 className="text-xl font-display">
-                {isEditing ? 'Edit Lesson' : 'New Lesson'}
+                {isEditing || initialData.lesson ? 'Edit Lesson' : 'New Lesson'}
               </h1>
-              {isEditing && (
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                  {isPublished ? 'Published' : 'Draft'}
-                </span>
+              {(isEditing || initialData.lesson) && (
+                <>
+                  <span className={`text-xs px-2 py-1 rounded-full ${isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {isPublished ? 'Published' : 'Draft'}
+                  </span>
+                  <select
+                    value={lesson.is_public ? 'public' : 'private'}
+                    onChange={(e) => setLesson({ ...lesson, is_public: e.target.value === 'public' })}
+                    className="text-xs px-2 py-1 rounded-btn border border-warm-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+                  >
+                    <option value="private">🔒 Private</option>
+                    <option value="public">🌍 Public</option>
+                  </select>
+                </>
               )}
-              <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
-                {activityCount} activities
-              </span>
+              <span className="text-xs bg-warm-100 px-2 py-1 rounded-full">{activityCount} activities</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button className="btn-secondary text-sm" onClick={handleExport}>📤 Export</button>
               <button className="btn-secondary text-sm" onClick={handleImportClick}>📥 Import</button>
               <input ref={fileInputRef} type="file" accept=".json" onChange={handleImportFile} className="hidden" />
               <button
-                className={`text-sm px-4 py-2 rounded transition ${
-                  lesson.share_slug
-                    ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
+                className={`text-sm px-4 py-2 rounded transition ${lesson.share_slug ? 'bg-primary-50 text-primary-700 hover:bg-primary-100' : 'bg-warm-100 text-warm-400 cursor-not-allowed'}`}
                 onClick={handlePreview}
                 disabled={!lesson.share_slug}
               >
@@ -1322,11 +1412,16 @@ export default function LessonBuilder() {
                 </button>
               ) : (
                 <button
-                  className="text-sm bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                  onClick={() => {
-                    if (confirm('Unpublish this lesson? It will no longer be accessible to students.')) {
-                      handleSave(false)
-                    }
+                  className="btn-secondary text-sm"
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: 'Unpublish Lesson',
+                      message: 'Unpublish this lesson? It will no longer be accessible to students.',
+                      confirmText: 'Unpublish',
+                      cancelText: 'Cancel',
+                      type: 'danger'
+                    })
+                    if (ok) handleSave(false)
                   }}
                 >
                   Unpublish
@@ -1337,24 +1432,24 @@ export default function LessonBuilder() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+      <main className="container-wide py-8 space-y-8">
         {/* Lesson Metadata */}
         <section className="card p-6 space-y-4">
           <h2 className="text-lg font-display">Lesson Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Title</label>
+              <label className="label">Title</label>
               <input
-                className="field-input"
+                className="input-field"
                 value={lesson.title || ''}
                 onChange={(e) => setLesson({ ...lesson, title: e.target.value })}
                 placeholder="e.g. The Great Gatsby"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Level</label>
+              <label className="label">Level</label>
               <select
-                className="field-input"
+                className="input-field"
                 value={lesson.level || 'B1'}
                 onChange={(e) => setLesson({ ...lesson, level: e.target.value })}
               >
@@ -1366,12 +1461,34 @@ export default function LessonBuilder() {
                 <option value="C2">C2 (Proficiency)</option>
               </select>
             </div>
+            <div>
+              <label className="label">
+                Folder <span className="text-red-500">*</span>
+              </label>
+              <select
+                ref={folderSelectRef}
+                className={`input-field ${folderError ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                value={selectedFolderId || ''}
+                onChange={(e) => {
+                  setSelectedFolderId(e.target.value || null)
+                  setFolderError(false)
+                }}
+              >
+                <option value="">Select a folder...</option>
+                {folders.map(f => (
+                  <option key={f.id} value={f.id}>📁 {f.name}</option>
+                ))}
+              </select>
+              {folderError && (
+                <p className="text-xs text-red-500 mt-1">Please select a folder before saving.</p>
+              )}
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Reading Text</label>
+            <label className="label">Reading Text</label>
             <textarea
-              className="field-input"
+              className="input-field"
               rows={6}
               value={lesson.reading_text || ''}
               onChange={(e) => setLesson({ ...lesson, reading_text: e.target.value })}
@@ -1380,7 +1497,7 @@ export default function LessonBuilder() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Audio</label>
+            <label className="label">Audio</label>
             <div className="flex items-center gap-4 flex-wrap">
               {lesson.audio_url && (
                 <div className="flex-1 min-w-[200px]">
@@ -1401,11 +1518,11 @@ export default function LessonBuilder() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Images</label>
+            <label className="label">Images</label>
             <div className="flex flex-wrap gap-3 mb-2">
               {(lesson.images || []).map((url, i) => (
                 <div key={i} className="relative">
-                  <img src={url} alt="" className="max-h-32 rounded border border-gray-200" />
+                  <img src={url} alt="" className="max-h-32 rounded-card border border-warm-200" />
                   <button
                     type="button"
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
@@ -1432,46 +1549,62 @@ export default function LessonBuilder() {
               className="text-sm"
             />
           </div>
+
+          <div>
+            <label className="label">Share with other teachers</label>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={lesson.is_public || false}
+                onChange={(e) => setLesson({ ...lesson, is_public: e.target.checked })}
+                className="w-4 h-4 text-primary-600 rounded border-warm-300 focus:ring-primary-500"
+              />
+              <span className="text-sm text-warm-600">
+                Make this lesson public (visible to other teachers)
+              </span>
+            </div>
+            <p className="text-xs text-warm-400 mt-1">
+              Public lessons appear in the Shared Lessons library for other teachers to copy and use.
+            </p>
+          </div>
         </section>
 
         {/* Sections */}
         <section className="card p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-display">Sections (Pages)</h2>
-            <button className="btn-secondary text-sm" onClick={addSection}>
-              + Add Section
-            </button>
+            <button className="btn-secondary text-sm" onClick={addSection}>+ Add Section</button>
           </div>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-warm-500">
             Sections group activities into pages. Students see one section at a time.
           </p>
           <div className="space-y-3">
             {sections.map((sec, idx) => (
-              <div key={sec.id || idx} className="border border-gray-200 rounded p-4 bg-white">
+              <div key={sec.id || idx} className="border border-warm-200 rounded-card p-4 bg-white">
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-medium text-gray-600">Title</label>
+                      <label className="text-xs font-medium text-warm-600">Title</label>
                       <input
-                        className="field-input text-sm"
+                        className="input-field text-sm"
                         value={sec.title || ''}
                         onChange={(e) => updateSection(idx, 'title', e.target.value)}
                         placeholder="e.g. Comprehension Questions"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">Intro Text (English)</label>
+                      <label className="text-xs font-medium text-warm-600">Intro Text (English)</label>
                       <input
-                        className="field-input text-sm"
+                        className="input-field text-sm"
                         value={sec.intro_text_en || ''}
                         onChange={(e) => updateSection(idx, 'intro_text_en', e.target.value)}
                         placeholder="Instructions in English"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">Intro Text (日本語)</label>
+                      <label className="text-xs font-medium text-warm-600">Intro Text (日本語)</label>
                       <input
-                        className="field-input text-sm"
+                        className="input-field text-sm"
                         value={sec.intro_text_ja || ''}
                         onChange={(e) => updateSection(idx, 'intro_text_ja', e.target.value)}
                         placeholder="日本語の指示"
@@ -1479,34 +1612,9 @@ export default function LessonBuilder() {
                     </div>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
-                    {idx > 0 && (
-                      <button
-                        type="button"
-                        className="text-gray-400 hover:text-gray-600 px-1"
-                        onClick={() => moveSection(idx, -1)}
-                        title="Move up"
-                      >
-                        ↑
-                      </button>
-                    )}
-                    {idx < sections.length - 1 && (
-                      <button
-                        type="button"
-                        className="text-gray-400 hover:text-gray-600 px-1"
-                        onClick={() => moveSection(idx, 1)}
-                        title="Move down"
-                      >
-                        ↓
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="text-red-400 hover:text-red-600 px-1"
-                      onClick={() => removeSection(idx)}
-                      title="Remove section"
-                    >
-                      ×
-                    </button>
+                    {idx > 0 && <button type="button" className="text-warm-400 hover:text-warm-600 px-1" onClick={() => moveSection(idx, -1)} title="Move up">↑</button>}
+                    {idx < sections.length - 1 && <button type="button" className="text-warm-400 hover:text-warm-600 px-1" onClick={() => moveSection(idx, 1)} title="Move down">↓</button>}
+                    <button type="button" className="text-red-400 hover:text-red-600 px-1" onClick={() => removeSection(idx)} title="Remove section">×</button>
                   </div>
                 </div>
               </div>
@@ -1516,24 +1624,20 @@ export default function LessonBuilder() {
 
         {/* Activities */}
         <section className="card p-6 space-y-4" ref={activitiesContainerRef}>
-          <div className="sticky top-16 z-10 bg-white -mx-6 px-6 py-3 border-b border-gray-200 shadow-sm flex flex-wrap justify-between items-center gap-2">
+          <div className="sticky top-16 z-10 bg-white -mx-6 px-6 py-3 border-b border-warm-200 shadow-sm flex flex-wrap justify-between items-center gap-2">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-display">Activities ({activityCount})</h2>
             </div>
             <div className="flex gap-2 flex-wrap">
               {ACTIVITY_TYPES.map((type) => (
-                <button
-                  key={type.value}
-                  className="btn-secondary text-xs"
-                  onClick={() => addActivity(type.value)}
-                >
+                <button key={type.value} className="btn-secondary text-xs" onClick={() => addActivity(type.value)}>
                   + {type.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <p className="text-xs text-muted mt-2">
+          <p className="text-xs text-warm-500 mt-2">
             Drag activities to reorder. Assign a section to group them into pages.
           </p>
           {activityCount === 0 && (
@@ -1545,25 +1649,22 @@ export default function LessonBuilder() {
             {activities.map((act, idx) => {
               const Editor = EDITORS[act.type]
               const setInputRef = (el) => {
-                if (el) {
-                  inputRefs.current[act.id] = el
-                } else {
-                  delete inputRefs.current[act.id]
-                }
+                if (el) inputRefs.current[act.id] = el
+                else delete inputRefs.current[act.id]
               }
               const showActivityAudio = act.type === 'listening' || act.type === 'dictation'
               const hasAudio = act.audio_url || act.config?.audio_url
 
               return (
-                <div key={act.id || idx} className="border border-gray-200 rounded p-4 bg-white activity-card">
+                <div key={act.id || idx} className="border border-warm-200 rounded-card p-4 bg-white activity-card">
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 space-y-3">
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded">
+                        <span className="text-xs font-medium bg-warm-100 px-2 py-1 rounded">
                           {ACTIVITY_TYPES.find(t => t.value === act.type)?.label || act.type}
                         </span>
                         <select
-                          className="text-xs border border-gray-300 rounded px-2 py-1"
+                          className="text-xs border border-warm-200 rounded px-2 py-1"
                           value={act.section_id || ''}
                           onChange={(e) => {
                             const val = e.target.value
@@ -1577,11 +1678,11 @@ export default function LessonBuilder() {
                             </option>
                           ))}
                         </select>
-                        <label className="text-xs text-gray-500 flex items-center gap-1">
+                        <label className="text-xs text-warm-500 flex items-center gap-1">
                           Points:
                           <input
                             type="number"
-                            className="w-12 border border-gray-300 rounded px-1 py-0.5 text-xs"
+                            className="w-12 border border-warm-200 rounded px-1 py-0.5 text-xs"
                             value={act.points ?? 1}
                             onChange={(e) => updateActivity(idx, { ...act, points: parseInt(e.target.value) || 1 })}
                             min={1}
@@ -1622,34 +1723,9 @@ export default function LessonBuilder() {
                       )}
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
-                      {idx > 0 && (
-                        <button
-                          type="button"
-                          className="text-gray-400 hover:text-gray-600 px-1"
-                          onClick={() => moveActivity(idx, -1)}
-                          title="Move up"
-                        >
-                          ↑
-                        </button>
-                      )}
-                      {idx < activities.length - 1 && (
-                        <button
-                          type="button"
-                          className="text-gray-400 hover:text-gray-600 px-1"
-                          onClick={() => moveActivity(idx, 1)}
-                          title="Move down"
-                        >
-                          ↓
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="text-red-400 hover:text-red-600 px-1"
-                        onClick={() => removeActivity(idx)}
-                        title="Remove activity"
-                      >
-                        ×
-                      </button>
+                      {idx > 0 && <button type="button" className="text-warm-400 hover:text-warm-600 px-1" onClick={() => moveActivity(idx, -1)} title="Move up">↑</button>}
+                      {idx < activities.length - 1 && <button type="button" className="text-warm-400 hover:text-warm-600 px-1" onClick={() => moveActivity(idx, 1)} title="Move down">↓</button>}
+                      <button type="button" className="text-red-400 hover:text-red-600 px-1" onClick={() => removeActivity(idx)} title="Remove activity">×</button>
                     </div>
                   </div>
                 </div>
@@ -1662,72 +1738,45 @@ export default function LessonBuilder() {
         <section className="card p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-display">Vocabulary Support</h2>
-            <button className="btn-secondary text-sm" onClick={addVocabularyItem}>
-              + Add Word
-            </button>
+            <button className="btn-secondary text-sm" onClick={addVocabularyItem}>+ Add Word</button>
           </div>
           <div className="space-y-2">
             {vocabulary.map((v, idx) => (
-              <div key={v.id || idx} className="flex flex-wrap items-center gap-2 border border-gray-200 rounded p-3 bg-white">
-                <input
-                  className="field-input flex-1 min-w-[100px] text-sm"
-                  placeholder="Term"
-                  value={v.term || ''}
-                  onChange={(e) => updateVocabulary(idx, 'term', e.target.value)}
-                />
-                <input
-                  className="field-input flex-1 min-w-[150px] text-sm"
-                  placeholder="Definition"
-                  value={v.definition || ''}
-                  onChange={(e) => updateVocabulary(idx, 'definition', e.target.value)}
-                />
-                <input
-                  className="field-input flex-1 min-w-[150px] text-sm"
-                  placeholder="Example (optional)"
-                  value={v.example || ''}
-                  onChange={(e) => updateVocabulary(idx, 'example', e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="text-red-400 hover:text-red-600 px-2"
-                  onClick={() => removeVocabulary(idx)}
-                  title="Remove"
-                >
-                  ×
-                </button>
+              <div key={v.id || idx} className="flex flex-wrap items-center gap-2 border border-warm-200 rounded-card p-3 bg-white">
+                <input className="input-field flex-1 min-w-[100px] text-sm" placeholder="Term" value={v.term || ''} onChange={(e) => updateVocabulary(idx, 'term', e.target.value)} />
+                <input className="input-field flex-1 min-w-[150px] text-sm" placeholder="Definition" value={v.definition || ''} onChange={(e) => updateVocabulary(idx, 'definition', e.target.value)} />
+                <input className="input-field flex-1 min-w-[150px] text-sm" placeholder="Example (optional)" value={v.example || ''} onChange={(e) => updateVocabulary(idx, 'example', e.target.value)} />
+                <button type="button" className="text-red-400 hover:text-red-600 px-2" onClick={() => removeVocabulary(idx)} title="Remove">×</button>
               </div>
             ))}
           </div>
         </section>
 
         {/* Bottom Navigation */}
-        <div className="flex justify-between items-center border-t border-gray-200 pt-6">
-          <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Back to Dashboard
-          </Link>
+        <div className="flex justify-between items-center border-t border-warm-200 pt-6">
+          <button onClick={goBackToFolder} className="text-sm text-warm-500 hover:text-warm-700">
+            ← Back to {selectedFolderId ? 'Folder' : 'Dashboard'}
+          </button>
           <div className="flex gap-3">
-            <button
-              className="btn-secondary"
-              onClick={() => handleSave(false)}
-              disabled={saving}
-            >
+            <button className="btn-secondary" onClick={() => handleSave(false)} disabled={saving}>
               {saving ? 'Saving…' : 'Save Draft'}
             </button>
             {!isPublished ? (
-              <button
-                className="btn-primary"
-                onClick={handlePublish}
-                disabled={publishing}
-              >
+              <button className="btn-primary" onClick={handlePublish} disabled={publishing}>
                 {publishing ? 'Publishing…' : 'Publish'}
               </button>
             ) : (
               <button
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-                onClick={() => {
-                  if (confirm('Unpublish this lesson? It will no longer be accessible to students.')) {
-                    handleSave(false)
-                  }
+                className="btn-secondary"
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Unpublish Lesson',
+                    message: 'Unpublish this lesson? It will no longer be accessible to students.',
+                    confirmText: 'Unpublish',
+                    cancelText: 'Cancel',
+                    type: 'danger'
+                  })
+                  if (ok) handleSave(false)
                 }}
               >
                 Unpublish

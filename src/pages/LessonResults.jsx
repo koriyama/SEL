@@ -1,12 +1,13 @@
 // src/pages/LessonResults.jsx
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { useConfirm } from '../context/ConfirmContext'
 import { getLesson, getResultsForLesson, deleteSubmissions, listSections } from '../lib/api'
 import { supabase } from '../lib/supabaseClient'
 
 // ---------- Helper to format a stored answer based on activity type ----------
 function formatResponseText(activityType, storedValue, config) {
-  // If no value or empty, return empty string
   if (storedValue === undefined || storedValue === null || storedValue === '') {
     return ''
   }
@@ -15,7 +16,6 @@ function formatResponseText(activityType, storedValue, config) {
 
   switch (activityType) {
     case 'multiple_choice': {
-      // Try to get options from config (legacy) or options_en (new)
       let options = config?.options_en || config?.options_ja || config?.options || []
       if (!Array.isArray(options) || options.length === 0) {
         options = config?.options_ja || []
@@ -26,7 +26,7 @@ function formatResponseText(activityType, storedValue, config) {
           return options[idx]
         }
       }
-      return value // fallback to raw index
+      return value
     }
 
     case 'gap_fill_dropdown': {
@@ -109,6 +109,7 @@ function formatResponseText(activityType, storedValue, config) {
 
 export default function LessonResults() {
   const { lessonId } = useParams()
+  const { confirm } = useConfirm()
   const [lesson, setLesson] = useState(null)
   const [submissions, setSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -152,10 +153,8 @@ export default function LessonResults() {
             const responseText = answers[activityId]
             const gradedKey = activityId + '_graded'
             const graded = answers[gradedKey] || {}
-            // Get score and maxScore from grading result
             const score = graded.score ?? 0
             const maxScore = graded.maxScore ?? 0
-            // Use autoCorrect if available, otherwise compute from score
             const autoCorrect = graded.autoCorrect !== undefined ? graded.autoCorrect : null
 
             const actInfo = activityMap[activityId] || { 
@@ -202,7 +201,6 @@ export default function LessonResults() {
     loadData()
   }, [lessonId])
 
-  // ---------- Selection functions ----------
   function toggleSelect(id) {
     const newSet = new Set(selectedIds)
     if (newSet.has(id)) newSet.delete(id)
@@ -226,11 +224,17 @@ export default function LessonResults() {
     setExpandedIds(newSet)
   }
 
-  // ---------- Delete ----------
   async function handleBulkDelete() {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    if (!confirm(`Delete ${ids.length} submission${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) return
+    const ok = await confirm({
+      title: 'Delete Submissions',
+      message: `Delete ${ids.length} submission${ids.length > 1 ? 's' : ''}? This cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    })
+    if (!ok) return
 
     setIsDeleting(true)
     try {
@@ -239,13 +243,12 @@ export default function LessonResults() {
       setExpandedIds(new Set())
       window.location.reload()
     } catch (err) {
-      alert('Failed to delete: ' + err.message)
+      toast.error('Failed to delete: ' + err.message)
     } finally {
       setIsDeleting(false)
     }
   }
 
-  // ---------- CSV Export ----------
   function downloadCSV() {
     if (!submissions.length) return
     const rows = [['Student', 'Status', 'Submitted', 'Score %', 'Max score', 'Q#', 'Question', 'Response', 'Result']]
@@ -256,21 +259,17 @@ export default function LessonResults() {
       }
       for (const r of s.responses) {
         let resultLabel = 'teacher review'
-        // For auto-graded types, use score comparison as primary method
         const autoTypes = ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
         if (autoTypes.includes(r.type)) {
-          // Use numeric comparison first (more reliable)
           if (r.maxScore > 0 && r.score === r.maxScore) {
             resultLabel = 'correct'
           } else if (r.maxScore > 0 && r.score < r.maxScore) {
             resultLabel = 'incorrect'
           } else if (r.auto_correct === true) {
-            // Fallback to autoCorrect flag if maxScore is 0 or comparison is ambiguous
             resultLabel = 'correct'
           } else if (r.auto_correct === false) {
             resultLabel = 'incorrect'
           } else {
-            // If we can't determine, default to incorrect
             resultLabel = 'incorrect'
           }
         }
@@ -298,9 +297,9 @@ export default function LessonResults() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+    toast.success('CSV exported successfully!')
   }
 
-  // ---------- Google Sheets export ----------
   async function exportToSheets() {
     setExportStatus('exporting')
     try {
@@ -309,12 +308,13 @@ export default function LessonResults() {
       })
       if (error) throw error
       setExportStatus(data?.spreadsheetUrl ? `done:${data.spreadsheetUrl}` : 'done')
+      toast.success('Exported to Google Sheets!')
     } catch (e) {
       setExportStatus(`error:${e.message}`)
+      toast.error('Export failed: ' + e.message)
     }
   }
 
-  // ---------- Render ----------
   if (loading) return <p className="text-muted mx-4">Loading…</p>
   if (error) return <div className="card p-4 border-crest bg-crestSoft text-crest text-sm mx-4">{error}</div>
   if (!lesson) return null
@@ -422,13 +422,11 @@ export default function LessonResults() {
                     <p className="text-[10px] text-gray-400 italic">No responses recorded.</p>
                   ) : (
                     s.responses.map((r, index) => {
-                      // Determine result label using score comparison as primary method
                       let resultLabel = 'teacher review'
                       let resultClass = 'text-amber-600'
                       const autoTypes = ['gap_fill', 'multiple_choice', 'gap_fill_dropdown', 'sentence_jumble', 'vocabulary_matching', 'listening', 'dictation']
                       
                       if (autoTypes.includes(r.type)) {
-                        // PRIMARY: Use numeric comparison (score === maxScore)
                         if (r.maxScore > 0 && r.score === r.maxScore) {
                           resultLabel = 'correct'
                           resultClass = 'text-green-600'
@@ -436,14 +434,12 @@ export default function LessonResults() {
                           resultLabel = 'incorrect'
                           resultClass = 'text-red-600'
                         } else if (r.auto_correct === true) {
-                          // SECONDARY: Fallback to autoCorrect flag
                           resultLabel = 'correct'
                           resultClass = 'text-green-600'
                         } else if (r.auto_correct === false) {
                           resultLabel = 'incorrect'
                           resultClass = 'text-red-600'
                         } else {
-                          // If we can't determine, default to incorrect
                           resultLabel = 'incorrect'
                           resultClass = 'text-red-600'
                         }

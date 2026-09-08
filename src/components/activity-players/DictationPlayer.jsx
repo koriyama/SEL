@@ -1,117 +1,89 @@
 // src/components/activity-players/DictationPlayer.jsx
-import { useState, useRef, useEffect } from 'react';
-import { renderInline } from '../../lib/inlineMarkup';
-import AudioPlayer from '../AudioPlayer';
+import React, { useState, useEffect } from 'react';
+import MicrophoneButton from '../MicrophoneButton';
 
-export default function DictationPlayer({ activity, value, onChange, disabled }) {
+export default function DictationPlayer({ activity, value, onChange, disabled, language }) {
   const config = activity.config || {};
+  const expected = config.expected_text || '';
   const prompt = activity.prompt || '';
-  // Check both top-level and config audio_url
-  const audioUrl = activity.audio_url || config.audio_url || null;
+
   const [text, setText] = useState(value || '');
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
-  // Set up speech recognition
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        setText(transcript);
-        onChange(transcript);
-        setIsRecording(false);
-      };
-      recognition.onerror = () => setIsRecording(false);
-      recognition.onend = () => setIsRecording(false);
-      recognitionRef.current = recognition;
+    if (value !== text) {
+      setText(value || '');
     }
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
-    };
-  }, [onChange]);
-
-  const startRecording = () => {
-    if (!recognitionRef.current) {
-      alert('Speech recognition is not supported in this browser.');
-      return;
-    }
-    setIsRecording(true);
-    recognitionRef.current.start();
-  };
+  }, [value]);
 
   const handleChange = (e) => {
-    setText(e.target.value);
-    onChange(e.target.value);
+    const val = e.target.value;
+    setText(val);
+    onChange(val);
+    setShowFeedback(false);
+  };
+
+  const handleTranscript = (transcript) => {
+    setText(transcript);
+    onChange(transcript);
+    setShowFeedback(false);
+  };
+
+  const checkAnswer = () => {
+    if (!expected) {
+      setFeedback('No expected text provided for grading.');
+      setShowFeedback(true);
+      return;
+    }
+    const user = text.trim().toLowerCase();
+    const expectedLower = expected.trim().toLowerCase();
+    const isCorrect = user === expectedLower;
+    setFeedback({
+      correct: isCorrect,
+      message: isCorrect
+        ? '✅ Correct!'
+        : `❌ Incorrect. Expected: "${expected}"`
+    });
+    setShowFeedback(true);
   };
 
   return (
     <div className="space-y-3">
-      {/* Prompt */}
-      {prompt && (
-        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {renderInline(prompt)}
-        </div>
-      )}
-
-      {/* Audio Player */}
-      {audioUrl ? (
-        <AudioPlayer src={audioUrl} />
-      ) : (
-        <div className="text-sm text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded px-3 py-2">
-          ⚠️ No audio provided for this dictation activity.
-        </div>
-      )}
-
-      {/* Input area with microphone button */}
-      <div className="flex items-start gap-2">
-        <div className="flex-1">
-          <label htmlFor={`dictation-${activity.id}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Your dictation
-          </label>
-          <textarea
-            id={`dictation-${activity.id}`}
-            className="field-input w-full"
-            rows={4}
-            value={text}
-            onChange={handleChange}
-            placeholder="Type what you hear..."
-            disabled={disabled}
-          />
-        </div>
-        {/* Microphone button – visible even when disabled (but greyed out) */}
-        <button
-          onClick={startRecording}
-          disabled={isRecording || disabled}
-          className={`mt-6 px-3 py-2 rounded-lg font-medium transition min-h-[44px] ${
-            isRecording
-              ? 'bg-red-500 text-white animate-pulse'
-              : disabled
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-          title={disabled ? 'Microphone disabled in preview mode' : 'Speak instead of typing'}
-        >
-          🎤
-        </button>
+      {prompt && <div className="text-sm font-medium">{prompt}</div>}
+      <div className="relative">
+        <textarea
+          value={text}
+          onChange={handleChange}
+          disabled={disabled}
+          className="w-full px-4 py-3 rounded-input border border-warm-200 focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20 transition-all duration-200 resize-y min-h-[80px] disabled:opacity-60"
+          placeholder="Type what you hear..."
+        />
+        {!disabled && (
+          <div className="absolute bottom-2 right-2">
+            <MicrophoneButton
+              onTranscript={handleTranscript}
+              disabled={disabled}
+              language={language === 'ja' ? 'ja-JP' : 'en-US'}
+            />
+          </div>
+        )}
       </div>
-
-      {/* Recording status */}
-      {isRecording && (
-        <p className="text-xs text-red-500 animate-pulse">🎙️ Listening… Speak now.</p>
+      {!disabled && expected && (
+        <div className="flex justify-end">
+          <button
+            onClick={checkAnswer}
+            className="btn-secondary text-sm"
+          >
+            Check Answer
+          </button>
+        </div>
       )}
-
-      {/* Help text */}
-      <p className="text-xs text-gray-400">
-        Type what you hear, or use the microphone button to speak your answer.
-      </p>
+      {showFeedback && feedback && (
+        <div className={`p-3 rounded-input text-sm ${feedback.correct ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          {feedback.message}
+        </div>
+      )}
     </div>
   );
 }

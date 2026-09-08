@@ -7,7 +7,9 @@ const Signup = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -15,15 +17,25 @@ const Signup = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
+    if (!displayName.trim()) {
+      setError('Please enter your display name');
+      return;
+    }
     setLoading(true);
     try {
-      await signup(email, password);
-      // After signup, user is automatically logged in
-      navigate('/');
+      const { session } = await signup(email, password, displayName);
+      if (session) {
+        // Email confirmation is off – directly logged in
+        navigate('/');
+      } else {
+        // Email confirmation required – show success message
+        setMessage('✅ Please check your email to confirm your account. After confirmation, you can log in.');
+      }
     } catch (err) {
       setError(err.message || 'Signup failed');
     } finally {
@@ -43,9 +55,19 @@ const Signup = () => {
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <input
-                type="email"
+                type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="Full Name (display name)"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </div>
+            <div>
+              <input
+                type="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -74,6 +96,7 @@ const Signup = () => {
           </div>
 
           {error && <div className="text-red-600 text-sm">{error}</div>}
+          {message && <div className="text-green-600 text-sm">{message}</div>}
 
           <div className="text-sm">
             <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
