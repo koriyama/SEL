@@ -158,6 +158,7 @@ export async function createLesson(fields, userId, folderId = null) {
       title: fields.title || 'Untitled lesson',
       level: fields.level || 'B1',
       reading_text: fields.reading_text || '',
+      description: fields.description || null,
       audio_url: fields.audio_url || null,
       images: fields.images || [],
       status: 'draft',
@@ -175,7 +176,11 @@ export async function createLesson(fields, userId, folderId = null) {
 export async function updateLesson(id, patch) {
   const { data, error } = await supabase
     .from('lessons')
-    .update({ ...patch, updated_at: new Date().toISOString() })
+    .update({ 
+      ...patch, 
+      description: patch.description || null,
+      updated_at: new Date().toISOString() 
+    })
     .eq('id', id)
     .select()
     .single()
@@ -199,15 +204,13 @@ export async function duplicateLesson(id, userId, folderId = null) {
     title: `${original.title} (copy)`,
     level: original.level,
     reading_text: original.reading_text,
+    description: original.description || null,
     audio_url: original.audio_url,
     images: original.images,
     is_public: false  // always private for copies
   }, userId, folderId)
 
   // 3. Fetch all sections, activities, vocabulary in ONE go (using the lesson ID)
-  // Instead of 3 separate queries, we can use a single query with joins,
-  // but the current API uses separate functions. We'll keep them separate for clarity,
-  // but batch them with Promise.all for parallel execution.
   const [sections, activities, vocabulary] = await Promise.all([
     listSections(id),
     listActivities(id),
@@ -246,9 +249,7 @@ export async function duplicateLesson(id, userId, folderId = null) {
   // 6. Prepare new activities with correct section_id mapping
   const firstSectionId = savedSections.length > 0 ? savedSections[0].id : null
   const newActivities = activities.map((act) => {
-    // Deep copy config to avoid mutation
     const configCopy = JSON.parse(JSON.stringify(act.config || {}))
-    // Ensure audio_url is preserved in both places
     const audioUrl = act.audio_url || configCopy.audio_url || null
     return {
       lesson_id: copy.id,
@@ -271,7 +272,6 @@ export async function duplicateLesson(id, userId, folderId = null) {
       .insert(newActivities)
       .select()
     assertNoError(error, 'Failed to copy activities')
-    // We don't need the returned data, but we keep it for consistency
   }
 
   // 8. Prepare new vocabulary
@@ -773,6 +773,7 @@ export async function importLessons(lessonsData, folderId, userId) {
       title: lesson.title + ' (imported)',
       level: lesson.level,
       reading_text: lesson.reading_text || '',
+      description: lesson.description || null,
       audio_url: lesson.audio_url || null,
       images: lesson.images || [],
       is_public: false // imported lessons are private by default
@@ -898,4 +899,79 @@ export async function getOrCreateAutoShareFolder(userId) {
     .single()
   assertNoError(error, 'Failed to create Shared folder')
   return data.id
+}
+
+// ---------- TTS generation ----------
+export async function generateTts(text, languageCode, voiceName, speakingRate = 1.0, pitch = 0) {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  if (!supabaseUrl) throw new Error('VITE_SUPABASE_URL is not set')
+  if (!anonKey) throw new Error('VITE_SUPABASE_ANON_KEY is not set')
+
+  // Build URL safely
+  const functionUrl = new URL('/functions/v1/generate-tts', supabaseUrl).toString()
+  console.log('📡 Calling TTS function at:', functionUrl)
+
+  const response = await fetch(functionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${anonKey}`,
+    },
+    body: JSON.stringify({
+      text,
+      languageCode,
+      voiceName,
+      speakingRate,
+      pitch,
+    }),
+  })
+
+  if (!response.ok) {
+    let errorMessage = 'TTS generation failed'
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.error || errorMessage
+    } catch (_) {
+      // ignore
+    }
+    throw new Error(errorMessage)
+  }
+
+  const data = await response.json()
+  if (!data.url) throw new Error('No audio URL returned')
+  return data.url
+}
+
+// ---------- Delete audio from storage ----------
+export async function deleteAudioFile(url) {
+  if (!url) return
+
+  try {
+    const urlObj = new URL(url)
+    const pathParts = urlObj.pathname.split('/')
+    // Find 'lesson-media' in the path and get everything after it
+    const lessonMediaIndex = pathParts.indexOf('lesson-media')
+    if (lessonMediaIndex === -1) throw new Error('Could not find lesson-media in URL')
+
+    const filePath = pathParts.slice(lessonMediaIndex + 1).join('/')
+    if (!filePath) throw new Error('Could not extract file path')
+
+    console.log('🗑️ Deleting audio file:', filePath)
+
+    const { error } = await supabase.storage
+      .from('lesson-media')
+      .remove([filePath])
+
+    if (error) {
+      console.error('❌ Storage delete error:', error)
+      throw new Error(`Failed to delete audio: ${error.message}`)
+    }
+
+    console.log('✅ Audio deleted from storage:', filePath)
+    return true
+  } catch (err) {
+    console.error('❌ Delete error:', err.message)
+    throw err
+  }
 }

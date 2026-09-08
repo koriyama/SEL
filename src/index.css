@@ -5,12 +5,20 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
   }
-
+  img {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -19,111 +27,339 @@
   }
 
   body {
-    @apply bg-warm-50 text-warm-800;
+    background: #f6f4f0 !important;
     min-height: 100vh;
+    color: #1f1a16 !important;
   }
 
   ::selection {
-    @apply bg-primary-200/60 text-primary-800;
+    background: #b8c9b0 !important;
+    color: #ffffff !important;
   }
 
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-
   ::-webkit-scrollbar-track {
-    @apply bg-warm-100/50;
-    border-radius: 8px;
+    background: #e8e4de !important;
+    border-radius: 12px !important;
   }
-
   ::-webkit-scrollbar-thumb {
-    @apply bg-primary-300/60;
-    border-radius: 8px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-primary-400/80;
+    background: #c8c0b6 !important;
+    border-radius: 12px !important;
   }
 
   *:focus-visible {
-    @apply outline-none ring-2 ring-primary-400 ring-offset-2 ring-offset-white;
+    outline: 2px solid #6b8a7a !important;
+    outline-offset: 2px !important;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-semibold tracking-tight text-warm-900;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #1f1a16 !important;
   }
 
-  h1 { @apply text-4xl md:text-5xl; }
-  h2 { @apply text-3xl md:text-4xl; }
-  h3 { @apply text-2xl md:text-3xl; }
-  h4 { @apply text-xl md:text-2xl; }
-  h5 { @apply text-lg md:text-xl; }
-  h6 { @apply text-base md:text-lg; }
-
   a {
-    @apply text-primary-600 hover:text-primary-700 transition-colors duration-200;
+    color: #6b8a7a !important;
+    text-underline-offset: 3px;
+    transition: color 0.2s ease;
+  }
+  a:hover {
+    color: #4a6b5a !important;
   }
 }
 
 @layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-btn 
-           bg-primary-600 text-white font-medium text-sm
-           hover:bg-primary-700 active:bg-primary-800 
-           transition-all duration-200 shadow-soft hover:shadow-medium
-           disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-soft;
-  }
-
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-btn 
-           bg-warm-100 text-warm-700 font-medium text-sm
-           hover:bg-warm-200 active:bg-warm-300 
-           transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-btn 
-           border-2 border-primary-300 text-primary-700 font-medium text-sm
-           hover:bg-primary-50 active:bg-primary-100 
-           transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-btn
-           text-warm-600 font-medium text-sm
-           hover:bg-warm-100 active:bg-warm-200
-           transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
+  /* ---- Professional cards: clean, minimal, with subtle shadow ---- */
   .card {
-    @apply bg-white rounded-card shadow-card transition-all duration-300;
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+    padding: 1.75rem !important;
+    transition: box-shadow 0.25s ease !important;
+    border: 1px solid rgba(0, 0, 0, 0.04) !important;
+    color: #1f1a16 !important;
+  }
+  .card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.02) !important;
   }
 
   .card-hover {
-    @apply card hover:shadow-hover hover:-translate-y-0.5;
+    composes: card;
   }
 
+  /* ---- Buttons: refined, less shouty ---- */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.5rem;
+    border: none !important;
+    border-radius: 2rem !important;
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    color: #ffffff !important;
+    background: #6b8a7a !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-primary:hover {
+    background: #5a7a68 !important;
+    box-shadow: 0 4px 12px rgba(107, 138, 122, 0.25) !important;
+    transform: translateY(-1px);
+  }
+  .btn-primary:active {
+    transform: translateY(0px);
+    box-shadow: none !important;
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.5rem;
+    border: 1px solid #d5d0c8 !important;
+    border-radius: 2rem !important;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: #4b4740 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-secondary:hover {
+    background: #f5f3ef !important;
+    border-color: #b8b0a8 !important;
+  }
+  .btn-secondary:active {
+    background: #e8e4de !important;
+  }
+  .btn-secondary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1.5rem;
+    border: 1px solid #c8d6c0 !important;
+    border-radius: 2rem !important;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: #4a6b5a !important;
+    background: transparent !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-outline:hover {
+    background: #f4f7f2 !important;
+    border-color: #6b8a7a !important;
+  }
+  .btn-outline:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.4rem 1rem;
+    border: none !important;
+    border-radius: 2rem !important;
+    font-weight: 500;
+    font-size: 0.8rem;
+    color: #6b6862 !important;
+    background: transparent !important;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover {
+    color: #1f1a16 !important;
+    background: #f0ede8 !important;
+  }
+  .btn-ghost:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* ---- Inputs: clean, minimal ---- */
   .input-field {
-    @apply w-full px-4 py-2.5 rounded-input border border-warm-200 
-           bg-white text-warm-800 placeholder-warm-400
-           focus:border-primary-400 focus:ring-2 focus:ring-primary-400/20
-           transition-all duration-200
-           disabled:opacity-50 disabled:cursor-not-allowed;
+    width: 100%;
+    padding: 0.7rem 1.25rem;
+    border: 1px solid #d5d0c8 !important;
+    border-radius: 1.5rem !important;
+    background: #fcfbf9 !important;
+    color: #1f1a16 !important;
+    transition: all 0.2s ease;
+    box-shadow: none !important;
+    font-size: 0.9rem;
+  }
+  .input-field:focus {
+    outline: none !important;
+    border-color: #6b8a7a !important;
+    box-shadow: 0 0 0 3px rgba(107, 138, 122, 0.1) !important;
+    background: #ffffff !important;
+  }
+  .input-field::placeholder {
+    color: #b8b2a8 !important;
+  }
+  .input-field:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #f0ede8 !important;
   }
 
   .label {
-    @apply block text-sm font-medium text-warm-700 mb-1.5;
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6b6862 !important;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
+  /* ---- Containers ---- */
   .container-narrow {
     @apply max-w-4xl mx-auto px-4 sm:px-6 lg:px-8;
   }
-
   .container-wide {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
+
+  /* ---- Header: clean, minimal ---- */
+  .sticky-header {
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+    box-shadow: none !important;
+    color: #1f1a16 !important;
+  }
+
+  /* ---- Activity cards: clean, professional ---- */
+  .activity-card {
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    border: 1px solid rgba(0, 0, 0, 0.04) !important;
+    transition: box-shadow 0.25s ease !important;
+    color: #1f1a16 !important;
+  }
+  .activity-card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  /* ---- Lesson card specific refinements (for Dashboard) ---- */
+  .lesson-card {
+    background: #ffffff !important;
+    border-radius: 1.25rem !important;
+    padding: 1.5rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    border: 1px solid rgba(0, 0, 0, 0.04) !important;
+    transition: box-shadow 0.25s ease !important;
+    color: #1f1a16 !important;
+  }
+  .lesson-card:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  /* ---- Level badges (like ZenGengo) ---- */
+  .level-badge {
+    display: inline-block;
+    padding: 0.15rem 0.7rem;
+    border-radius: 1rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: #edf3ea !important;
+    color: #4a6b5a !important;
+    border: 1px solid rgba(107, 138, 122, 0.15) !important;
+  }
+
+  .level-badge-A1 { background: #f0f4e8 !important; color: #5a7a4a !important; }
+  .level-badge-A2 { background: #e8f0e8 !important; color: #4a7a5a !important; }
+  .level-badge-B1 { background: #e0ece8 !important; color: #3a7a6a !important; }
+  .level-badge-B2 { background: #d8e8e8 !important; color: #2a7a7a !important; }
+  .level-badge-C1 { background: #d8e4f0 !important; color: #3a5a7a !important; }
+  .level-badge-C2 { background: #e0dce8 !important; color: #5a4a7a !important; }
+
+  .fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+@layer utilities {
+  /* ---- Folder cards: clean, minimal ---- */
+  .border-warm-200 {
+    border-color: rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .bg-warm-50 {
+    background-color: #faf8f5 !important;
+  }
+
+  [class*="card-hover"] {
+    background: #ffffff !important;
+    border: 1px solid rgba(0, 0, 0, 0.04) !important;
+    border-radius: 1.25rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+    color: #1f1a16 !important;
+    transition: box-shadow 0.25s ease !important;
+  }
+  [class*="card-hover"]:hover {
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06) !important;
+  }
+
+  .border-primary-200 {
+    border-color: rgba(0, 0, 0, 0.04) !important;
+    background: #f6f4f0 !important;
+    color: #1f1a16 !important;
+  }
+
+  .border-warm-300 {
+    border-color: rgba(0, 0, 0, 0.04) !important;
+    background: #faf8f5 !important;
+    color: #1f1a16 !important;
+  }
+
+  /* Text colours – professional, high contrast */
+  .text-warm-500 { color: #6b6862 !important; }
+  .text-warm-900 { color: #1f1a16 !important; }
+  .text-warm-700 { color: #4b4740 !important; }
+  .text-warm-400 { color: #9e9a92 !important; }
+  .text-warm-600 { color: #5b5852 !important; }
+
+  .bg-primary-100 { background-color: #edf3ea !important; }
+  .text-primary-600 { color: #6b8a7a !important; }
+  .text-primary-700 { color: #4a6b5a !important; }
+  .bg-accent-100 { background-color: #f3ece8 !important; }
+  .text-accent-700 { color: #a67c6e !important; }
+
+  .rounded-full { border-radius: 9999px !important; }
+  .rounded-card { border-radius: 1.25rem !important; }
+  .rounded-btn { border-radius: 2rem !important; }
+  .rounded-input { border-radius: 1.5rem !important; }
 }

@@ -188,48 +188,62 @@ export default function PublicLessonLibrary() {
             {lessons.map((lesson) => {
               const isOwnLesson = lesson.user_id === user.id
               const folderName = getFolderName(lesson.folder_id)
-              
+              const level = lesson.level || 'B1'
+              const excerpt = lesson.reading_text
+                ? lesson.reading_text.substring(0, 120) + '...'
+                : 'No description available.'
+
               return (
-                <div
-                  key={lesson.id}
-                  className="card p-5 hover:shadow-hover transition-shadow"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                <div key={lesson.id} className="lesson-card">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    {/* Left side */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="text-base font-medium text-warm-900 truncate">
-                          {lesson.title}
-                        </h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          lesson.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {lesson.status}
+                      <h3 className="text-lg font-semibold text-warm-900 truncate">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-sm text-warm-500 mt-1 line-clamp-2">
+                        {excerpt}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-3 mt-3">
+                        <span className={`level-badge level-badge-${level.toUpperCase()}`}>
+                          {level}
                         </span>
-                        <span className="text-xs text-warm-400 font-mono">{lesson.level}</span>
+                        <span className="text-xs text-warm-400 flex items-center gap-2">
+                          <span>Language: English</span>
+                          <span className="w-px h-3 bg-warm-200 inline-block"></span>
+                          <span>CEFR Level {level}</span>
+                        </span>
                         <span className="text-xs bg-accent-100 text-accent-700 px-2 py-0.5 rounded-full font-medium">
                           🌍 Public
                         </span>
                         {isOwnLesson && (
-                          <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
                             Your lesson
                           </span>
                         )}
-                      </div>
-                      <div className="flex flex-wrap gap-4 mt-1 text-sm text-warm-500">
-                        <span>📂 {folderName}</span>
-                        <span className="text-warm-400">
-                          {new Date(lesson.created_at).toLocaleDateString()}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                          lesson.status === 'published'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                        }`}>
+                          {lesson.status}
                         </span>
+                      </div>
+                      <div className="flex flex-wrap gap-4 mt-2 text-xs text-warm-400">
+                        <span>📂 {folderName}</span>
+                        <span>{new Date(lesson.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
-                      {/* Copy to folder – always available */}
+                    {/* Right side */}
+                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0 mt-2 md:mt-0">
+                      {/* Copy dropdown */}
                       <div className="flex items-center gap-1">
                         <select
                           value={copyTargetFolder[lesson.id] || ''}
                           onChange={(e) => setCopyTargetFolder(prev => ({ ...prev, [lesson.id]: e.target.value }))}
-                          className="text-sm border border-warm-200 rounded-btn px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+                          className="text-xs border border-warm-200 rounded-full px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-primary-400/20"
                         >
                           <option value="">Copy to...</option>
                           {folders.map(f => (
@@ -238,53 +252,57 @@ export default function PublicLessonLibrary() {
                         </select>
                         <button
                           onClick={() => handleCopyToFolder(lesson.id)}
-                          className="btn-primary text-sm px-3 py-1"
+                          className="btn-primary text-xs py-1.5 px-4"
                         >
                           Copy
                         </button>
                       </div>
-                      
-                      {/* OWNER CONTROLS – only show if isOwnLesson */}
+
+                      {/* Owner controls */}
                       {isOwnLesson && (
                         <>
                           <button
                             onClick={() => handleTogglePublic(lesson.id, lesson.is_public)}
-                            className="btn-secondary text-sm px-3 py-1"
-                            title="Make this lesson private (remove from Shared Lessons)"
+                            className="btn-secondary text-xs py-1.5 px-4"
                           >
                             {lesson.is_public ? '🔒 Make Private' : '🌍 Make Public'}
                           </button>
                           <button
                             onClick={() => handleDelete(lesson.id, lesson.title)}
-                            className="text-sm text-red-500 hover:text-red-700 px-2 py-1"
-                            title="Delete this lesson permanently"
+                            className="text-red-400 hover:text-red-600 text-xs py-1 px-2 font-medium"
                           >
                             🗑️
                           </button>
                           <Link
                             to={`/builder/${lesson.id}`}
-                            className="text-sm text-primary-600 hover:underline px-2 py-1 whitespace-nowrap font-medium"
+                            className="btn-ghost text-xs py-1 px-3"
                           >
                             ✏️ Edit
                           </Link>
                         </>
                       )}
 
-                      {/* For non-owners: no Edit link – they must copy first */}
                       {!isOwnLesson && (
                         <span className="text-xs text-warm-400 italic" title="Copy this lesson to your folder first to edit">
                           Copy to edit
                         </span>
                       )}
 
-                      {/* Results link – always available (read‑only) */}
                       <Link
                         to={`/results/${lesson.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-warm-500 hover:underline px-2 py-1 whitespace-nowrap"
+                        className="btn-ghost text-xs py-1 px-3"
                       >
                         Results
+                      </Link>
+
+                      <Link
+                        to={`/lesson/${lesson.share_slug}`}
+                        target="_blank"
+                        className="btn-primary text-xs py-1.5 px-4"
+                      >
+                        Try It
                       </Link>
                     </div>
                   </div>

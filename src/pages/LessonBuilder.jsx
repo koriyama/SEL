@@ -18,7 +18,7 @@ import {
   saveVocabulary,
   uploadAudio,
   uploadImage,
-  listFolders
+  listFolders,
 } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { renderInline } from '../lib/inlineMarkup.jsx'
@@ -27,6 +27,7 @@ import ReadingText from '../components/ReadingText.jsx'
 import GapFillDropdownEditor from '../components/activity-editors/GapFillDropdownEditor.jsx'
 import SentenceJumbleEditor from '../components/activity-editors/SentenceJumbleEditor.jsx'
 import VocabularyMatchingEditor from '../components/activity-editors/VocabularyMatchingEditor.jsx'
+import TextToSpeechGenerator from '../components/TextToSpeechGenerator.jsx'
 
 // ---- Default section intro texts (bilingual) ----
 const DEFAULT_SECTION_INTRO = {
@@ -51,7 +52,7 @@ const TEMPLATES = {
           { type: 'multiple_choice', config: { options_en: ['', '', '', ''], options_ja: ['', '', '', ''], correctIndex: -1 }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
           { type: 'gap_fill', config: { answers: [], text_en: '', text_ja: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
           { type: 'sentence_jumble', config: { words: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
-          { type: 'listening', config: { audio_url: '', questions: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
+          { type: 'listening', config: { audio_url: '', listening_text: '', questions: [] }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
           { type: 'dictation', config: { audio_url: '', expected_text: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
           { type: 'short_answer', config: { suggestedAnswer: '' }, points: 1, prompt_en: '', prompt_ja: '', audio_url: null },
           { type: 'reasoning', config: {}, points: 1, prompt_en: '', prompt_ja: '', audio_url: null }
@@ -104,6 +105,7 @@ const TEMPLATES = {
             type: 'listening', 
             config: { 
               audio_url: '', 
+              listening_text: '',
               questions: [ 
                 { question_en: '', question_ja: '', type: 'multiple_choice', options: ['', ''], correct_answer: -1 } 
               ] 
@@ -385,10 +387,23 @@ function ReasoningEditor({ activity, onChange, inputRef }) {
   )
 }
 
+// ---- UPDATED ListeningEditor with TTS support ----
 function ListeningEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
   const questions = config.questions || []
+
+  // Handle TTS for listening script
+  const handleTtsGenerated = (url) => {
+    updateConfig({ audio_url: url })
+    toast.success('Listening audio generated and attached!')
+  }
+
+  const handleTtsDeleted = () => {
+    updateConfig({ audio_url: null })
+    toast.success('Listening audio removed')
+  }
+
   const addQuestion = () => {
     const newQ = {
       question_en: '',
@@ -399,25 +414,30 @@ function ListeningEditor({ activity, onChange, inputRef }) {
     }
     updateConfig({ questions: [...questions, newQ] })
   }
+
   const removeQuestion = (idx) => {
     const newQuestions = questions.filter((_, i) => i !== idx)
     updateConfig({ questions: newQuestions })
   }
+
   const updateQuestion = (idx, field, value) => {
     const newQuestions = [...questions]
     newQuestions[idx][field] = value
     updateConfig({ questions: newQuestions })
   }
+
   const updateOption = (qIdx, optIdx, value) => {
     const newQuestions = [...questions]
     newQuestions[qIdx].options[optIdx] = value
     updateConfig({ questions: newQuestions })
   }
+
   const addOption = (qIdx) => {
     const newQuestions = [...questions]
     newQuestions[qIdx].options.push('')
     updateConfig({ questions: newQuestions })
   }
+
   const removeOption = (qIdx, optIdx) => {
     const newQuestions = [...questions]
     newQuestions[qIdx].options.splice(optIdx, 1)
@@ -428,6 +448,7 @@ function ListeningEditor({ activity, onChange, inputRef }) {
     }
     updateConfig({ questions: newQuestions })
   }
+
   return (
     <div className="space-y-3">
       <div>
@@ -451,16 +472,48 @@ function ListeningEditor({ activity, onChange, inputRef }) {
           placeholder="例：音声を聞いて質問に答えてください。"
         />
       </div>
+
+      {/* ---- TTS Generator for Listening Script ---- */}
+      <div className="border-l-4 border-blue-400 pl-4 bg-blue-50/30 rounded-r-card py-3 pr-4">
+        <label className="label flex items-center gap-2">
+          🎙️ Listening Script / Text
+          <span className="text-xs text-warm-400 font-normal">Paste script to generate audio</span>
+        </label>
+        <textarea
+          className="input-field"
+          rows={4}
+          value={config.listening_text || ''}
+          onChange={(e) => updateConfig({ listening_text: e.target.value })}
+          placeholder="Paste the listening script / passage here..."
+        />
+        <TextToSpeechGenerator
+          defaultText={config.listening_text || ''}
+          onGenerated={handleTtsGenerated}
+          onDeleted={handleTtsDeleted}
+          buttonLabel="Generate Listening Audio"
+          clearButtonLabel="🗑️ Remove Audio"
+          showClearButton={!!config.audio_url}
+        />
+        {config.audio_url && (
+          <div className="mt-3">
+            <AudioPlayer src={config.audio_url} />
+          </div>
+        )}
+      </div>
+
+      {/* Audio URL (manual fallback) */}
       <div>
-        <label className="label">Audio URL</label>
+        <label className="label">Audio URL (manual)</label>
         <input
           className="input-field"
           value={config.audio_url || ''}
           onChange={(e) => updateConfig({ audio_url: e.target.value })}
           placeholder="https://example.com/audio.mp3"
         />
-        <p className="text-xs text-warm-400 mt-1">Upload audio using the button in the activity toolbar above.</p>
+        <p className="text-xs text-warm-400 mt-1">Upload audio manually or use the generator above.</p>
       </div>
+
+      {/* Questions */}
       <div>
         <label className="label">Questions</label>
         {questions.map((q, qIdx) => (
@@ -568,9 +621,22 @@ function ListeningEditor({ activity, onChange, inputRef }) {
   )
 }
 
+// ---- UPDATED DictationEditor with TTS support ----
 function DictationEditor({ activity, onChange, inputRef }) {
   const config = activity.config || {}
   const updateConfig = (patch) => onChange({ ...activity, config: { ...config, ...patch } })
+
+  // Handle TTS generation for dictation
+  const handleTtsGenerated = (url) => {
+    updateConfig({ audio_url: url })
+    toast.success('Audio attached to dictation!')
+  }
+
+  const handleTtsDeleted = () => {
+    updateConfig({ audio_url: null })
+    toast.success('Audio removed from dictation')
+  }
+
   return (
     <div className="space-y-3">
       <div>
@@ -594,16 +660,52 @@ function DictationEditor({ activity, onChange, inputRef }) {
           placeholder="例：聞いて、聞こえた通りに入力してください。"
         />
       </div>
-      <div>
-        <label className="label">Audio URL</label>
-        <input
-          className="input-field"
-          value={config.audio_url || ''}
-          onChange={(e) => updateConfig({ audio_url: e.target.value })}
-          placeholder="https://example.com/audio.mp3"
+
+      {/* Audio section with TTS generator */}
+      <div className="border-l-4 border-blue-400 pl-4 bg-blue-50/30 rounded-r-card py-3 pr-4">
+        <label className="label flex items-center gap-2">
+          🎙️ Dictation Audio
+          <span className="text-xs text-warm-400 font-normal">Generate from text or upload file</span>
+        </label>
+
+        {/* TTS Generator for dictation text */}
+        <TextToSpeechGenerator
+          defaultText={config.expected_text || ''}
+          onGenerated={handleTtsGenerated}
+          onDeleted={handleTtsDeleted}
+          buttonLabel="Generate Audio from Text"
+          clearButtonLabel="🗑️ Remove Audio"
+          showClearButton={!!config.audio_url}
         />
-        <p className="text-xs text-warm-400 mt-1">Upload audio using the button in the activity toolbar above.</p>
+
+        {/* Manual upload (fallback) */}
+        <div className="mt-3">
+          <p className="text-xs text-warm-500 mb-1">Or upload a custom audio file:</p>
+          <input
+            type="file"
+            accept="audio/*"
+            className="text-sm"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                toast.info('Please use the upload button in the activity toolbar above.')
+              }
+              e.target.value = ''
+            }}
+          />
+          <p className="text-xs text-warm-400 mt-1">
+            For manual upload, use the <strong>"Upload audio"</strong> button in the activity toolbar.
+          </p>
+        </div>
+
+        {/* Show existing audio player */}
+        {config.audio_url && (
+          <div className="mt-3">
+            <AudioPlayer src={config.audio_url} />
+          </div>
+        )}
       </div>
+
       <div>
         <label className="label">Expected text (for grading)</label>
         <textarea
@@ -613,7 +715,9 @@ function DictationEditor({ activity, onChange, inputRef }) {
           onChange={(e) => updateConfig({ expected_text: e.target.value })}
           placeholder="The quick brown fox jumps over the lazy dog."
         />
-        <p className="text-xs text-warm-400 mt-1">Grading is case‑insensitive and trims whitespace.</p>
+        <p className="text-xs text-warm-400 mt-1">
+          This text will be used for grading. The TTS generator will speak this text for dictation practice.
+        </p>
       </div>
     </div>
   )
@@ -729,7 +833,7 @@ export default function LessonBuilder() {
     }
     loadFolders()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]) // only when user changes
+  }, [user])
 
   // ---- Load lesson data only when id or initialData changes ----
   useEffect(() => {
@@ -745,7 +849,15 @@ export default function LessonBuilder() {
       if (folderParam && folderParam !== 'all' && folderParam !== 'uncategorised') {
         setSelectedFolderId(folderParam)
       }
-      setLesson({ title: '', level: 'B1', reading_text: '', audio_url: null, images: [], is_public: false })
+      setLesson({ 
+        title: '', 
+        level: 'B1', 
+        reading_text: '', 
+        description: '',
+        audio_url: null, 
+        images: [], 
+        is_public: false 
+      })
       setShowTemplateModal(true)
       setSections([])
       setActivities([])
@@ -773,7 +885,7 @@ export default function LessonBuilder() {
     }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]) // only when id changes
+  }, [id])
 
   // ---- Focus on new activity ----
   useEffect(() => {
@@ -849,6 +961,7 @@ export default function LessonBuilder() {
           title: lesson.title,
           level: lesson.level,
           reading_text: lesson.reading_text,
+          description: lesson.description || null,
           audio_url: lesson.audio_url,
           images: lesson.images || [],
           folder_id: selectedFolderId,
@@ -859,6 +972,7 @@ export default function LessonBuilder() {
           title: lesson.title,
           level: lesson.level,
           reading_text: lesson.reading_text,
+          description: lesson.description || null,
           audio_url: lesson.audio_url,
           images: lesson.images || [],
           is_public: lesson.is_public || false
@@ -894,14 +1008,13 @@ export default function LessonBuilder() {
 
       if (shouldPublish) {
         await setLessonStatus(lessonId, 'published')
-      } else if (isEditing || initialData.lesson) {
+      } else if (shouldPublish === false && !isEditing && !initialData.lesson) {
         await setLessonStatus(lessonId, 'draft')
       }
 
       const folderName = folders.find(f => f.id === selectedFolderId)?.name || 'Uncategorised'
       toast.success(`✅ Lesson saved to "${folderName}"!`)
 
-      // Navigate back to the current folder – use the lesson's folder_id as fallback
       const folderToUse = selectedFolderId || savedLesson.folder_id
       if (folderToUse) {
         navigate(`/?folder=${folderToUse}`)
@@ -980,7 +1093,7 @@ export default function LessonBuilder() {
         newActivity.config = { pairs: [] }
         break
       case 'listening':
-        newActivity.config = { audio_url: '', questions: [] }
+        newActivity.config = { audio_url: '', listening_text: '', questions: [] }
         break
       case 'dictation':
         newActivity.config = { audio_url: '', expected_text: '' }
@@ -1092,6 +1205,7 @@ export default function LessonBuilder() {
       title: lesson.title || 'Untitled',
       level: lesson.level || 'B1',
       reading_text: lesson.reading_text || '',
+      description: lesson.description || '',
       audio_url: lesson.audio_url || null,
       images: lesson.images || []
     }
@@ -1156,6 +1270,7 @@ export default function LessonBuilder() {
           title: data.lesson.title || 'Untitled',
           level: data.lesson.level || 'B1',
           reading_text: data.lesson.reading_text || '',
+          description: data.lesson.description || '',
           audio_url: data.lesson.audio_url || null,
           images: data.lesson.images || [],
           is_public: data.lesson.is_public || false
@@ -1302,7 +1417,7 @@ export default function LessonBuilder() {
   // ---- Render ----
   if (error) {
     return (
-      <div className="min-h-screen p-6">
+      <div className="min-h-screen p-6 bg-warm-50">
         <div className="card p-6 border-red-200 bg-red-50 text-red-700">
           <p>{error}</p>
           <button className="btn-secondary mt-4" onClick={() => navigate('/')}>
@@ -1315,7 +1430,7 @@ export default function LessonBuilder() {
 
   if (!lesson) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-warm-50">
         <p className="text-warm-500">Loading…</p>
       </div>
     )
@@ -1362,7 +1477,7 @@ export default function LessonBuilder() {
         </div>
       )}
 
-      <header className="bg-white/80 backdrop-blur-md border-b border-warm-200/60 sticky top-0 z-10">
+      <header className="sticky-header sticky top-0 z-10">
         <div className="container-wide py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -1380,10 +1495,13 @@ export default function LessonBuilder() {
                   <span className={`text-xs px-2 py-1 rounded-full ${isPublished ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                     {isPublished ? 'Published' : 'Draft'}
                   </span>
+                  <span className={`level-badge level-badge-${(lesson.level || 'B1').toUpperCase()}`}>
+                    {lesson.level || 'B1'}
+                  </span>
                   <select
                     value={lesson.is_public ? 'public' : 'private'}
                     onChange={(e) => setLesson({ ...lesson, is_public: e.target.value === 'public' })}
-                    className="text-xs px-2 py-1 rounded-btn border border-warm-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+                    className="text-xs px-2 py-1 rounded-full border border-warm-200 bg-white focus:outline-none focus:ring-1 focus:ring-primary-400/20"
                   >
                     <option value="private">🔒 Private</option>
                     <option value="public">🌍 Public</option>
@@ -1496,8 +1614,42 @@ export default function LessonBuilder() {
             />
           </div>
 
+          {/* ---- TTS Generator for Reading Text (no duplicate player) ---- */}
+          <div className="border-l-4 border-blue-400 pl-4 bg-blue-50/30 rounded-r-card py-3 pr-4">
+            <label className="label flex items-center gap-2">
+              🎙️ Text‑to‑Speech for Reading Text
+              <span className="text-xs text-warm-400 font-normal">Generate and attach audio</span>
+            </label>
+            <TextToSpeechGenerator
+              defaultText={lesson.reading_text || ''}
+              onGenerated={(url) => {
+                setLesson({ ...lesson, audio_url: url })
+                toast.success('Audio attached to lesson!')
+              }}
+              buttonLabel="Generate Audio for Reading Text"
+            />
+          </div>
+
+          {/* ----- DESCRIPTION FIELD ----- */}
+          <div className="border-l-4 border-primary-400 pl-4 bg-primary-50/30 rounded-r-card py-3 pr-4">
+            <label className="label flex items-center gap-2">
+              Description (for shared lessons)
+              <span className="text-xs text-warm-400 font-normal">optional</span>
+            </label>
+            <textarea
+              className="input-field"
+              rows={3}
+              value={lesson.description || ''}
+              onChange={(e) => setLesson({ ...lesson, description: e.target.value })}
+              placeholder="Optional: Write a short description for the Shared Lessons library. This helps other teachers understand what the lesson covers."
+            />
+            <p className="text-xs text-warm-400 mt-1">
+              This description appears in the Shared Lessons repository. Leave blank if not needed.
+            </p>
+          </div>
+
           <div>
-            <label className="label">Audio</label>
+            <label className="label">Audio (manual upload)</label>
             <div className="flex items-center gap-4 flex-wrap">
               {lesson.audio_url && (
                 <div className="flex-1 min-w-[200px]">
@@ -1515,6 +1667,7 @@ export default function LessonBuilder() {
                 className="text-sm"
               />
             </div>
+            <p className="text-xs text-warm-400 mt-1">Upload an audio file manually, or use the TTS generator above.</p>
           </div>
 
           <div>
@@ -1580,7 +1733,7 @@ export default function LessonBuilder() {
           </p>
           <div className="space-y-3">
             {sections.map((sec, idx) => (
-              <div key={sec.id || idx} className="border border-warm-200 rounded-card p-4 bg-white">
+              <div key={sec.id || idx} className="card p-4">
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
@@ -1656,7 +1809,7 @@ export default function LessonBuilder() {
               const hasAudio = act.audio_url || act.config?.audio_url
 
               return (
-                <div key={act.id || idx} className="border border-warm-200 rounded-card p-4 bg-white activity-card">
+                <div key={act.id || idx} className="activity-card p-4">
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 space-y-3">
                       <div className="flex flex-wrap items-center gap-3">
@@ -1664,7 +1817,7 @@ export default function LessonBuilder() {
                           {ACTIVITY_TYPES.find(t => t.value === act.type)?.label || act.type}
                         </span>
                         <select
-                          className="text-xs border border-warm-200 rounded px-2 py-1"
+                          className="text-xs border border-warm-200 rounded-full px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-primary-400/20"
                           value={act.section_id || ''}
                           onChange={(e) => {
                             const val = e.target.value
@@ -1682,7 +1835,7 @@ export default function LessonBuilder() {
                           Points:
                           <input
                             type="number"
-                            className="w-12 border border-warm-200 rounded px-1 py-0.5 text-xs"
+                            className="w-12 border border-warm-200 rounded-full px-1 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary-400/20"
                             value={act.points ?? 1}
                             onChange={(e) => updateActivity(idx, { ...act, points: parseInt(e.target.value) || 1 })}
                             min={1}
@@ -1721,6 +1874,28 @@ export default function LessonBuilder() {
                           <AudioPlayer src={act.audio_url || act.config?.audio_url} />
                         </div>
                       )}
+                      {/* ---- TTS Generator for Activity Prompt ---- */}
+                      <div className="mt-3 border-t border-warm-200 pt-3">
+                        <details className="text-sm">
+                          <summary className="cursor-pointer text-primary-600 hover:underline">
+                            🎙️ Generate audio from prompt
+                          </summary>
+                          <div className="mt-2">
+                            <TextToSpeechGenerator
+                              defaultText={act.prompt_en || act.prompt_ja || ''}
+                              onGenerated={(url) => {
+                                const updated = { ...act, audio_url: url }
+                                if (act.config) {
+                                  updated.config = { ...act.config, audio_url: url }
+                                }
+                                updateActivity(idx, updated)
+                                toast.success('Audio attached to activity!')
+                              }}
+                              buttonLabel="Generate & Attach to Activity"
+                            />
+                          </div>
+                        </details>
+                      </div>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       {idx > 0 && <button type="button" className="text-warm-400 hover:text-warm-600 px-1" onClick={() => moveActivity(idx, -1)} title="Move up">↑</button>}
@@ -1742,7 +1917,7 @@ export default function LessonBuilder() {
           </div>
           <div className="space-y-2">
             {vocabulary.map((v, idx) => (
-              <div key={v.id || idx} className="flex flex-wrap items-center gap-2 border border-warm-200 rounded-card p-3 bg-white">
+              <div key={v.id || idx} className="flex flex-wrap items-center gap-2 card p-3">
                 <input className="input-field flex-1 min-w-[100px] text-sm" placeholder="Term" value={v.term || ''} onChange={(e) => updateVocabulary(idx, 'term', e.target.value)} />
                 <input className="input-field flex-1 min-w-[150px] text-sm" placeholder="Definition" value={v.definition || ''} onChange={(e) => updateVocabulary(idx, 'definition', e.target.value)} />
                 <input className="input-field flex-1 min-w-[150px] text-sm" placeholder="Example (optional)" value={v.example || ''} onChange={(e) => updateVocabulary(idx, 'example', e.target.value)} />

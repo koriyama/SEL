@@ -557,7 +557,7 @@ export default function StudentLesson() {
     }
   };
 
-  // Save & Exit handler
+  // ---- Save & Exit handler ----
   const handleSaveAndExit = useCallback(async () => {
     if (!submissionId) {
       console.warn('⚠️ Cannot save: no submission ID');
@@ -643,7 +643,7 @@ export default function StudentLesson() {
         return <DictationPlayer {...commonProps} />;
       default:
         return (
-          <div className="text-red-500 p-2 bg-red-50 dark:bg-red-900/20 rounded">
+          <div className="text-red-500 p-2 bg-red-50 rounded">
             Unknown activity type: {activity.type}
           </div>
         );
@@ -663,8 +663,8 @@ export default function StudentLesson() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen p-6 bg-warm-50">
-        <div className="bg-red-50 border border-red-200 rounded-card p-6 max-w-md text-center">
-          <p className="text-red-600">{error}</p>
+        <div className="card p-6 border-red-200 bg-red-50 text-red-700 max-w-md text-center">
+          <p>{error}</p>
           <p className="text-xs text-warm-500 mt-2">Slug: {slug} | Preview: {String(isPreview)}</p>
         </div>
       </div>
@@ -675,15 +675,17 @@ export default function StudentLesson() {
   if (!nameSubmitted) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-warm-50">
-        <div className="bg-white rounded-card shadow-medium p-8 max-w-md w-full">
+        <div className="card p-8 max-w-md w-full">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold text-warm-900 mb-2">
               {t.enterNameTitle(lesson.title)}
             </h1>
             {lesson.level && (
-              <p className="text-sm text-warm-500">
-                {t.enterNameSubtitle.replace('{level}', lesson.level)}
-              </p>
+              <div className="flex justify-center">
+                <span className={`level-badge level-badge-${(lesson.level || 'B1').toUpperCase()}`}>
+                  {lesson.level}
+                </span>
+              </div>
             )}
             <p className="mt-4 text-sm text-warm-600">
               {t.enterNamePrompt}
@@ -695,7 +697,7 @@ export default function StudentLesson() {
           </div>
 
           <div className="flex justify-center mb-4">
-            <div className="inline-flex rounded-btn border border-warm-300 overflow-hidden">
+            <div className="inline-flex rounded-full border border-warm-200 overflow-hidden">
               <button
                 onClick={() => { setLanguage('en'); localStorage.setItem('preferred_language', 'en'); }}
                 className={`px-4 py-1 text-sm font-medium transition ${
@@ -747,7 +749,7 @@ export default function StudentLesson() {
     const totalActivities = sections.reduce((acc, sec) => acc + (sec.activities || []).length, 0);
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-warm-50">
-        <div className="bg-white rounded-card shadow-medium p-8 max-w-2xl w-full">
+        <div className="card p-8 max-w-2xl w-full">
           <div className="text-center mb-6">
             <h1 className="text-3xl font-bold text-warm-900 mb-2">
               {t.instructionsTitle(lesson.title, lesson.level, sections.length, totalActivities)}
@@ -995,7 +997,7 @@ export default function StudentLesson() {
 
     return (
       <div className="min-h-screen p-6 bg-warm-50">
-        <div className="max-w-2xl mx-auto bg-white rounded-card shadow-medium p-8">
+        <div className="max-w-2xl mx-auto card p-8">
           <div className="text-center">
             <div className="text-6xl mb-4">🎉</div>
             <h2 className="text-3xl font-bold text-warm-900 mb-2">
@@ -1012,7 +1014,7 @@ export default function StudentLesson() {
 
             <button
               onClick={() => setShowAnswers(!showAnswers)}
-              className="mt-6 inline-block btn-primary"
+              className="mt-6 btn-primary"
             >
               {showAnswers ? t.hideAnswers : t.seeAnswers}
             </button>
@@ -1067,8 +1069,8 @@ export default function StudentLesson() {
   if (!sections || sections.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-warm-50">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-card p-6 max-w-md text-center">
-          <p className="text-yellow-700">This lesson has no sections yet.</p>
+        <div className="card p-6 bg-yellow-50 border border-yellow-200 max-w-md text-center text-yellow-700">
+          <p>This lesson has no sections yet.</p>
         </div>
       </div>
     );
@@ -1090,14 +1092,15 @@ export default function StudentLesson() {
 
   return (
     <div className="min-h-screen bg-warm-50 pb-32 md:pb-8">
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-warm-200/60 px-4 py-3 md:px-8">
+      <header className="sticky-header sticky top-0 z-30 px-4 py-3 md:px-8">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="flex-1 min-w-0">
             <h1 className="text-base md:text-lg font-semibold text-warm-900 truncate">
               {lesson.title}
             </h1>
-            <p className="text-xs text-warm-500 truncate">
-              {isPreview ? '🔍 PREVIEW' : `Student: ${studentName}`}
+            {/* ---- PROMINENT STUDENT NAME ---- */}
+            <p className="text-sm md:text-base font-semibold text-primary-700 truncate">
+              {isPreview ? '🔍 PREVIEW MODE' : `👤 ${studentName}`}
             </p>
           </div>
           <div className="flex items-center gap-2 ml-4">
@@ -1107,7 +1110,7 @@ export default function StudentLesson() {
                 setLanguage(newLang);
                 localStorage.setItem('preferred_language', newLang);
               }}
-              className="text-xs bg-warm-200 hover:bg-warm-300 px-2 py-1 rounded transition"
+              className="text-xs bg-warm-200 hover:bg-warm-300 px-2 py-1 rounded-full transition"
             >
               {language === 'en' ? '日本語' : 'English'}
             </button>
@@ -1144,7 +1147,7 @@ export default function StudentLesson() {
                 return (
                   <div
                     key={activity.id}
-                    className="bg-white rounded-card shadow-soft border border-warm-200 p-4 md:p-6"
+                    className="activity-card p-4 md:p-6"
                   >
                     {renderActivity(activity, idx)}
                   </div>
@@ -1169,7 +1172,7 @@ export default function StudentLesson() {
                   className={`flex-1 py-3 px-6 rounded-btn font-medium text-base transition min-h-[48px] ${
                     isPreview || !submissionId || isSubmitting
                       ? 'bg-warm-100 text-warm-400 cursor-not-allowed'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'btn-primary'
                   }`}
                 >
                   {isSubmitting ? 'Submitting...' : '📤 Submit Lesson'}

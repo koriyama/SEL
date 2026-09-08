@@ -29,12 +29,10 @@ export default function TeacherDashboard() {
   const [newFolderName, setNewFolderName] = useState('')
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
 
-  // Load data once
   useEffect(() => {
     loadData()
   }, [])
 
-  // After data loads, check URL param for folder
   useEffect(() => {
     if (!loading && folders.length > 0) {
       const folderParam = searchParams.get('folder')
@@ -112,7 +110,6 @@ export default function TeacherDashboard() {
   function viewFolder(folderId) {
     setSelectedFolderId(folderId)
     setViewMode('lessons')
-    // Update URL so that returning from edit goes back here
     navigate(`/?folder=${folderId}`, { replace: true })
   }
 
@@ -227,7 +224,7 @@ export default function TeacherDashboard() {
         <header className="bg-white/80 backdrop-blur-md border-b border-warm-200/60 sticky top-0 z-20">
           <div className="container-wide py-4 flex flex-wrap justify-between items-center gap-4">
             <h1 className="text-2xl font-display text-warm-900 tracking-tight">
-              📚 SEL Lesson Repository
+              📚 SEL Lesson Builder
             </h1>
             <div className="flex items-center gap-4 flex-wrap">
               <span className="text-sm text-warm-700">
@@ -371,6 +368,7 @@ export default function TeacherDashboard() {
     )
   }
 
+  // ---- LESSONS VIEW (professional card layout) ----
   return (
     <div className="min-h-screen bg-warm-50">
       <header className="bg-white/80 backdrop-blur-md border-b border-warm-200/60 sticky top-0 z-20">
@@ -427,49 +425,61 @@ export default function TeacherDashboard() {
           <div className="space-y-3">
             {filteredLessons.map((lesson) => {
               const isPublic = lesson.is_public
+              const level = lesson.level || 'B1'
+              const description = lesson.description || 'No description available.'
+
               return (
-                <div
-                  key={lesson.id}
-                  className="card p-5 hover:shadow-hover transition-shadow"
-                >
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div key={lesson.id} className="lesson-card">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                    {/* Left side: Title, description, metadata */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="text-base font-medium text-warm-900 truncate">
-                          {lesson.title}
-                        </h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          lesson.status === 'published'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {lesson.status}
+                      <h3 className="text-lg font-semibold text-warm-900 truncate">
+                        {lesson.title}
+                      </h3>
+                      <p className="text-sm text-warm-500 mt-1 line-clamp-2">
+                        {description}
+                      </p>
+
+                      {/* Metadata row */}
+                      <div className="flex flex-wrap items-center gap-3 mt-3">
+                        <span className={`level-badge level-badge-${level.toUpperCase()}`}>
+                          {level}
                         </span>
-                        <span className="text-xs text-warm-400 font-mono">
-                          {lesson.level}
+                        <span className="text-xs text-warm-400 flex items-center gap-2">
+                          <span>Language: English</span>
+                          <span className="w-px h-3 bg-warm-200 inline-block"></span>
+                          <span>CEFR Level {level}</span>
                         </span>
                         {isPublic && (
                           <span className="text-xs bg-accent-100 text-accent-700 px-2 py-0.5 rounded-full font-medium">
                             🌍 Public
                           </span>
                         )}
-                      </div>
-                      <div className="flex flex-wrap gap-4 mt-1 text-sm text-warm-500">
-                        <span>📝 {lesson.completedCount || 0} completions</span>
-                        {lesson.avgPercent !== null && (
-                          <span>📊 Avg: {lesson.avgPercent}%</span>
-                        )}
-                        <span className="text-warm-400">
-                          {new Date(lesson.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                          lesson.status === 'published'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                        }`}>
+                          {lesson.status}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+                    {/* Right side: Stats + Actions */}
+                    <div className="flex items-center gap-2 flex-wrap flex-shrink-0 mt-2 md:mt-0">
+                      {/* Stats */}
+                      <div className="flex items-center gap-3 mr-2 text-xs text-warm-500">
+                        <span title="Completions">📝 {lesson.completedCount || 0}</span>
+                        {lesson.avgPercent !== null && (
+                          <span title="Average score">📊 {lesson.avgPercent}%</span>
+                        )}
+                      </div>
+
+                      {/* Move dropdown */}
                       <select
                         value={lesson.folder_id || ''}
                         onChange={(e) => handleMoveLesson(lesson.id, e.target.value || null)}
-                        className="text-sm border border-warm-200 rounded-btn px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-primary-400/20"
+                        className="text-xs border border-warm-200 rounded-full px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-primary-400/20"
                       >
                         <option value="">Move</option>
                         <option value="">📄 Uncategorised</option>
@@ -478,17 +488,25 @@ export default function TeacherDashboard() {
                         ))}
                       </select>
 
+                      {/* Action buttons */}
+                      <Link
+                        to={`/lesson/${lesson.share_slug}`}
+                        target="_blank"
+                        className="btn-primary text-xs py-1.5 px-4"
+                      >
+                        Try It
+                      </Link>
+
                       <button
                         onClick={() => handleCopyLink(lesson.share_slug)}
-                        className="text-sm text-primary-600 hover:underline px-2 py-1 whitespace-nowrap"
-                        title="Copy student URL"
+                        className="btn-secondary text-xs py-1.5 px-4"
                       >
                         Link
                       </button>
 
                       <Link
                         to={`/builder/${lesson.id}`}
-                        className="text-sm text-primary-600 hover:underline px-2 py-1 whitespace-nowrap font-medium"
+                        className="btn-ghost text-xs py-1 px-3"
                       >
                         ✏️ Edit
                       </Link>
@@ -497,21 +515,21 @@ export default function TeacherDashboard() {
                         to={`/results/${lesson.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-warm-500 hover:underline px-2 py-1 whitespace-nowrap"
+                        className="btn-ghost text-xs py-1 px-3"
                       >
                         Results
                       </Link>
 
                       <button
                         onClick={() => handleDuplicate(lesson.id)}
-                        className="text-sm text-warm-500 hover:text-warm-700 px-2 py-1 whitespace-nowrap"
+                        className="btn-ghost text-xs py-1 px-3"
                       >
                         Copy
                       </button>
 
                       <button
                         onClick={() => handleDeleteLesson(lesson.id, lesson.title)}
-                        className="text-sm text-red-500 hover:text-red-700 px-2 py-1 whitespace-nowrap font-medium"
+                        className="text-red-400 hover:text-red-600 text-xs py-1 px-2 font-medium"
                       >
                         🗑️
                       </button>
@@ -519,14 +537,14 @@ export default function TeacherDashboard() {
                       {lesson.status === 'draft' ? (
                         <button
                           onClick={() => handlePublish(lesson.id)}
-                          className="btn-primary text-sm px-3 py-1"
+                          className="btn-primary text-xs py-1.5 px-4"
                         >
                           Publish
                         </button>
                       ) : (
                         <button
                           onClick={() => handleUnpublish(lesson.id)}
-                          className="btn-secondary text-sm px-3 py-1"
+                          className="btn-secondary text-xs py-1.5 px-4"
                         >
                           Unpublish
                         </button>
