@@ -1487,6 +1487,7 @@ export default function LessonBuilder() {
               >
                 ← Back to {selectedFolderId ? 'Folder' : 'Dashboard'}
               </button>
+              <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto" />
               <h1 className="text-xl font-display">
                 {isEditing || initialData.lesson ? 'Edit Lesson' : 'New Lesson'}
               </h1>

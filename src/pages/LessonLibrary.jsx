@@ -105,7 +105,6 @@ export default function LessonLibrary() {
       toast.error('Select at least one lesson to export.');
       return;
     }
-    // Simple export: just show IDs – in production you'd call an export API
     const ids = Array.from(selectedIds);
     toast.success(`Exporting ${ids.length} lessons (IDs: ${ids.join(', ')})`);
   };
@@ -121,8 +120,12 @@ export default function LessonLibrary() {
   return (
     <div className="min-h-screen bg-warm-50 py-8">
       <div className="container-wide">
+        {/* ---- Header with logo ---- */}
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-          <h1 className="text-2xl font-display text-warm-900">📚 My Lesson Library</h1>
+          <div className="flex items-center gap-3">
+            <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto" />
+            <h1 className="text-2xl font-display text-warm-900">My Lesson Library</h1>
+          </div>
           <Link to="/" className="btn-secondary">
             ← Back to Dashboard
           </Link>

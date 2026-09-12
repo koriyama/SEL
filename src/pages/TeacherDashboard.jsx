@@ -223,9 +223,12 @@ export default function TeacherDashboard() {
       <div className="min-h-screen bg-warm-50">
         <header className="bg-white/80 backdrop-blur-md border-b border-warm-200/60 sticky top-0 z-20">
           <div className="container-wide py-4 flex flex-wrap justify-between items-center gap-4">
-            <h1 className="text-2xl font-display text-warm-900 tracking-tight">
-              📚 SEL Lesson Builder
-            </h1>
+            <div className="flex items-center gap-3">
+              <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto" />
+              <h1 className="text-2xl font-display text-warm-900 tracking-tight">
+                SEL Lesson Builder
+              </h1>
+            </div>
             <div className="flex items-center gap-4 flex-wrap">
               <span className="text-sm text-warm-700">
                 {user?.user_metadata?.display_name || user?.email}
@@ -290,7 +293,7 @@ export default function TeacherDashboard() {
                 onClick={() => viewFolder(null)}
                 className="card-hover p-6 cursor-pointer border-2 border-primary-200 hover:border-primary-400"
               >
-                <div className="text-3xl mb-2">📚</div>
+                <div className="text-3xl mb-2">📂</div>
                 <h3 className="text-lg font-semibold text-warm-900">All Lessons</h3>
                 <p className="text-sm text-warm-500">{lessons.length} lessons</p>
               </div>
@@ -380,6 +383,7 @@ export default function TeacherDashboard() {
             >
               ← Folders
             </button>
+            <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto" />
             <h1 className="text-xl font-display text-warm-900">
               📁 {getFolderName()}
             </h1>

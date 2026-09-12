@@ -1,0 +1,5 @@
+name = "frosty-night-36a9"
+compatibility_date = "2024-12-18"
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

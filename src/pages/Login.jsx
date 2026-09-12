@@ -11,8 +11,6 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Removed the useEffect that pre-filled from env vars
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -85,24 +83,30 @@ const Login = () => {
           </div>
         </form>
 
+        <div className="text-center text-sm border-t border-gray-200 pt-4">
+          <span className="text-gray-500">Are you a student? </span>
+          <Link to="/student-login" className="font-medium text-indigo-600 hover:text-indigo-500">
+            Student login
+          </Link>
+        </div>
+
         {import.meta.env.VITE_ADMIN_TOKEN && (
           <div className="text-center border-t border-gray-200 pt-4">
             <button
               type="button"
               onClick={async () => {
-                // Admin auto‑login logic
                 const { adminAutoLogin } = await import('../lib/adminLogin');
                 try {
                   await adminAutoLogin();
                   navigate('/');
                 } catch (err) {
-                  setError(err.message || 'Auto‑login error');
+                  setError(err.message || 'Auto-login error');
                 }
               }}
               disabled={loading}
               className="text-sm text-blue-600 hover:underline disabled:opacity-50"
             >
-              🔑 Auto‑Login as Admin (one click)
+              🔑 Auto-Login as Admin (one click)
             </button>
           </div>
         )}

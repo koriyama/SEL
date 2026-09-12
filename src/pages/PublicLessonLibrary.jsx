@@ -156,6 +156,7 @@ export default function PublicLessonLibrary() {
             <Link to="/" className="text-warm-500 hover:text-warm-700 flex items-center gap-1">
               ← Dashboard
             </Link>
+            <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto" />
             <h1 className="text-2xl font-display text-warm-900">🌍 Shared Lessons</h1>
             <span className="text-sm text-warm-400">({lessons.length} shared lessons)</span>
           </div>

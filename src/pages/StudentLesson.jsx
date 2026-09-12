@@ -55,7 +55,8 @@ const translations = {
     namePlaceholder: 'Your full name',
     startButton: 'Start Lesson',
     previewBadge: '🔍 PREVIEW MODE',
-    instructionsTitle: (title, level, sections, activities) => `📚 ${title} · Level: ${level} · ${sections} sections · ${activities} activities`,
+    // 
+    instructionsTitle: (title, level, sections, activities) => `${title} · Level: ${level} · ${sections} sections · ${activities} activities`,
     aboutLesson: '📖 About this lesson',
     aboutLessonText: (sections) => `This lesson is divided into ${sections} sections. You'll complete activities in order, and your progress is saved automatically.`,
     navigation: '📌 Navigation',
@@ -95,7 +96,8 @@ const translations = {
     namePlaceholder: 'フルネーム',
     startButton: 'レッスンを始める',
     previewBadge: '🔍 プレビューモード',
-    instructionsTitle: (title, level, sections, activities) => `📚 ${title} · レベル: ${level} · ${sections} セクション · ${activities} アクティビティ`,
+    //
+    instructionsTitle: (title, level, sections, activities) => `${title} · レベル: ${level} · ${sections} セクション · ${activities} アクティビティ`,
     aboutLesson: '📖 このレッスンについて',
     aboutLessonText: (sections) => `このレッスンは ${sections} つのセクションに分かれています。順番にアクティビティを進め、進捗は自動保存されます。`,
     navigation: '📌 ナビゲーション',
@@ -1094,16 +1096,18 @@ export default function StudentLesson() {
     <div className="min-h-screen bg-warm-50 pb-32 md:pb-8">
       <header className="sticky-header sticky top-0 z-30 px-4 py-3 md:px-8">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base md:text-lg font-semibold text-warm-900 truncate">
-              {lesson.title}
-            </h1>
-            {/* ---- PROMINENT STUDENT NAME ---- */}
-            <p className="text-sm md:text-base font-semibold text-primary-700 truncate">
-              {isPreview ? '🔍 PREVIEW MODE' : `👤 ${studentName}`}
-            </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base md:text-lg font-semibold text-warm-900 truncate">
+                {lesson.title}
+              </h1>
+              <p className="text-sm md:text-base font-semibold text-primary-700 truncate">
+                {isPreview ? '🔍 PREVIEW MODE' : `👤 ${studentName}`}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
             <button
               onClick={() => {
                 const newLang = language === 'en' ? 'ja' : 'en';

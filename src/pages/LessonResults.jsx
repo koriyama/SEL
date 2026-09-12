@@ -328,13 +328,17 @@ export default function LessonResults() {
         ← My lessons
       </Link>
 
+      {/* ---- Header with logo ---- */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <p className="rail-label mb-0.5">results</p>
-          <h1 className="text-xl font-display">{lesson.title}</h1>
-          <p className="text-xs text-muted mt-0.5">
-            {completed.length} completed · {submissions.length - completed.length} in progress
-          </p>
+        <div className="flex items-center gap-3">
+          <img src="/sel.png" alt="SEL Logo" className="h-10 w-auto" />
+          <div>
+            <p className="rail-label mb-0.5">results</p>
+            <h1 className="text-xl font-display">{lesson.title}</h1>
+            <p className="text-xs text-muted mt-0.5">
+              {completed.length} completed · {submissions.length - completed.length} in progress
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button className="btn-secondary text-xs px-3 py-1" onClick={downloadCSV} disabled={!submissions.length}>
